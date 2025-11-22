@@ -13,9 +13,6 @@ console.log("API Base URL:", API_BASE);
 const apiClient = axios.create({
   baseURL: API_BASE,
   timeout: 120000,
-  headers: {
-    "Content-Type": "multipart/form-data",
-  },
 });
 
 export async function analyze({
@@ -36,7 +33,11 @@ export async function analyze({
 
   try {
     console.log("Making API request to:", `${API_BASE}/api/analyze`);
-    const resp = await apiClient.post("/api/analyze", fd);
+    const resp = await apiClient.post("/api/analyze", fd, {
+      headers: {
+        "Content-Type": "multipart/form-data",
+      },
+    });
     return resp.data;
   } catch (error) {
     console.error("API Error:", error);
@@ -52,6 +53,21 @@ export async function analyze({
       );
     }
 
+    throw error;
+  }
+}
+
+export async function aiAnalyze({ weatherData, imageBase64, imageMime }) {
+  try {
+    console.log("Making AI analysis request to:", `${API_BASE}/api/ai-analyze`);
+    const resp = await apiClient.post("/api/ai-analyze", {
+      weatherData,
+      imageBase64,
+      imageMime,
+    });
+    return resp.data;
+  } catch (error) {
+    console.error("AI Analysis Error:", error);
     throw error;
   }
 }
