@@ -5,7 +5,7 @@ const API_BASE =
   import.meta.env.VITE_API_BASE ||
   (import.meta.env.PROD
     ? "https://open-ai-buildathon-sever.onrender.com"
-    : "http://localhost:5000");
+    : "http://localhost:5001");
 
 console.log("API Base URL:", API_BASE);
 
