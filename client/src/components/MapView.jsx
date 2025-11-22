@@ -22,6 +22,25 @@ function MapClickHandler({ onMapClick }) {
   return null;
 }
 
+function MapUpdater({ lat, lon }) {
+  const map = useMapEvents({});
+  
+  React.useEffect(() => {
+    if (lat && lon) {
+      // Pan to new coordinates with smooth animation
+      map.setView([lat, lon], map.getZoom(), {
+        animate: true,
+        pan: {
+          animate: true,
+          duration: 1
+        }
+      });
+    }
+  }, [lat, lon, map]);
+  
+  return null;
+}
+
 export default function MapView({ 
   lat = 12.9716, 
   lon = 77.5946, 
@@ -62,7 +81,7 @@ export default function MapView({
   return (
     <div className="h-full w-full relative bg-neutral-100 dark:bg-neutral-800">
       {!analysis && (
-        <div className="absolute inset-0 flex items-center justify-center bg-white/90 dark:bg-neutral-800/90 backdrop-blur-sm z-10 pointer-events-none">
+        <div className="absolute inset-0 flex items-center justify-center bg-white/90 dark:bg-neutral-800/90 backdrop-blur-sm z-10 pointer-events-none" style={{zIndex: 10}}>
           <div className="text-center px-6">
             <div className="w-20 h-20 bg-blue-50 dark:bg-blue-900/20 rounded-full flex items-center justify-center mx-auto mb-4 border border-blue-200 dark:border-blue-700">
               <svg className="w-10 h-10 text-blue-500 dark:text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -87,6 +106,7 @@ export default function MapView({
         />
         
         <MapClickHandler onMapClick={onMapClick} />
+        <MapUpdater lat={lat} lon={lon} />
         
         <Marker position={[lat, lon]}>
           <Popup>
