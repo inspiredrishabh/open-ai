@@ -60,16 +60,17 @@ export default function MapView({
   });
 
   return (
-    <div className="h-full w-full relative bg-neutral-50">
+    <div className="h-full w-full relative bg-neutral-100 dark:bg-neutral-800">
       {!analysis && (
-        <div className="absolute inset-0 flex items-center justify-center bg-neutral-50 z-10 pointer-events-none">
+        <div className="absolute inset-0 flex items-center justify-center bg-white/90 dark:bg-neutral-800/90 backdrop-blur-sm z-10 pointer-events-none">
           <div className="text-center px-6">
-            <div className="w-20 h-20 bg-neutral-100 rounded-full flex items-center justify-center mx-auto mb-4">
-              <svg className="w-10 h-10 text-neutral-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <div className="w-20 h-20 bg-blue-50 dark:bg-blue-900/20 rounded-full flex items-center justify-center mx-auto mb-4 border border-blue-200 dark:border-blue-700">
+              <svg className="w-10 h-10 text-blue-500 dark:text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7" />
               </svg>
             </div>
-            <p className="text-neutral-600 font-medium text-sm">Click on map to analyze location</p>
+            <p className="text-neutral-700 dark:text-neutral-300 font-medium text-sm">Click anywhere on the map to analyze location</p>
+            <p className="text-neutral-500 dark:text-neutral-400 text-xs mt-1">Get flood risk assessment and evacuation routes</p>
           </div>
         </div>
       )}
@@ -77,7 +78,7 @@ export default function MapView({
       <MapContainer 
         center={[lat, lon]} 
         zoom={13} 
-        style={{ height: "100%", width: "100%" }}
+        style={{ height: "100%", width: "100%", borderRadius: "12px" }}
         zoomControl={true}
       >
         <TileLayer 
