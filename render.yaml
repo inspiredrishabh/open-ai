@@ -1,0 +1,25 @@
+services:
+  - type: web
+    name: flood-risk-server
+    env: node
+    buildCommand: cd server && npm install
+    startCommand: cd server && npm start
+    plan: free
+    region: oregon
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 5000
+    healthCheckPath: /health
+
+  - type: web
+    name: flood-risk-client
+    env: static
+    buildCommand: cd client && npm install && npm run build
+    staticPublishPath: ./client/dist
+    plan: free
+    region: oregon
+    envVars:
+      - key: VITE_API_BASE
+        value: https://flood-risk-server.onrender.com
