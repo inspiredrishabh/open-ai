@@ -49,19 +49,19 @@ export default function Home() {
         <div className="max-w-7xl mx-auto px-6">
           <div className="max-w-4xl mx-auto text-center">
             <div className="inline-flex items-center gap-2 bg-neutral-100 dark:bg-neutral-800 px-4 py-2 rounded-full mb-8">
-              <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
-              <span className="text-sm font-medium text-neutral-900 dark:text-white">AI-Powered Disaster Prediction</span>
+              <div className="w-2 h-2 bg-blue-500 rounded-full animate-pulse"></div>
+              <span className="text-sm font-medium text-neutral-900 dark:text-white">AI Disaster Analysis & Evacuation</span>
             </div>
             
             <h1 className="text-5xl md:text-7xl font-bold text-neutral-900 dark:text-white tracking-tight mb-6">
               Saving Lives Through
               <br />
-              <span className="text-neutral-600 dark:text-neutral-400">Natural Disaster Prediction</span>
+              <span className="text-neutral-600 dark:text-neutral-400">AI Analysis & Smart Evacuation</span>
             </h1>
             
             <p className="text-xl text-neutral-600 dark:text-neutral-400 mb-12 max-w-2xl mx-auto leading-relaxed">
-              Advanced AI and satellite imagery to predict natural disasters before they happen. 
-              Get real-time risk assessments and evacuation guidance to protect what matters most.
+              Advanced AI analyzes disaster risks using satellite data, weather patterns, and climate conditions. 
+              Then plan optimal evacuation routes with multiple agents and find nearby safety facilities.
             </p>
             
             <div className="flex items-center justify-center gap-4">
@@ -69,7 +69,7 @@ export default function Home() {
                 to="/analyze"
                 className="bg-neutral-900 dark:bg-white hover:bg-neutral-800 dark:hover:bg-neutral-100 text-white dark:text-neutral-900 font-medium px-8 py-4 rounded-lg transition-all duration-200 text-lg"
               >
-                Analyze Your Location
+                Analyze & Plan Routes
               </Link>
               <button 
                 onClick={() => scrollToSection('how-it-works')}
@@ -106,7 +106,7 @@ export default function Home() {
               Powerful Features
             </h2>
             <p className="text-lg text-neutral-600 dark:text-neutral-400 max-w-2xl mx-auto">
-              Cutting-edge technology designed to protect communities from natural disasters
+              AI-powered disaster analysis combined with intelligent evacuation planning for complete emergency preparedness
             </p>
           </div>
 
@@ -118,9 +118,9 @@ export default function Home() {
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3.055 11H5a2 2 0 012 2v1a2 2 0 002 2 2 2 0 012 2v2.945M8 3.935V5.5A2.5 2.5 0 0010.5 8h.5a2 2 0 012 2 2 2 0 104 0 2 2 0 012-2h1.064M15 20.488V18a2 2 0 012-2h3.064M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                 </svg>
               </div>
-              <h3 className="text-xl font-semibold text-neutral-900 dark:text-white mb-3">Satellite Imagery</h3>
+              <h3 className="text-xl font-semibold text-neutral-900 dark:text-white mb-3">AI Risk Analysis</h3>
               <p className="text-neutral-600 dark:text-neutral-400 leading-relaxed">
-                Real-time NASA satellite data integration for accurate terrain and weather analysis across the globe.
+                Claude AI analyzes satellite data, weather patterns, and climate conditions to predict disaster risks.
               </p>
             </div>
 
@@ -131,9 +131,9 @@ export default function Home() {
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
                 </svg>
               </div>
-              <h3 className="text-xl font-semibold text-neutral-900 dark:text-white mb-3">AI Predictions</h3>
+              <h3 className="text-xl font-semibold text-neutral-900 dark:text-white mb-3">Multiple Data Sources</h3>
               <p className="text-neutral-600 dark:text-neutral-400 leading-relaxed">
-                Claude AI analyzes multiple data points to provide accurate disaster probability and risk assessments.
+                NASA satellite imagery, weather APIs, earthquake data, and air quality monitoring for comprehensive analysis.
               </p>
             </div>
 
@@ -157,9 +157,9 @@ export default function Home() {
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
                 </svg>
               </div>
-              <h3 className="text-xl font-semibold text-neutral-900 dark:text-white mb-3">Real-Time Alerts</h3>
+              <h3 className="text-xl font-semibold text-neutral-900 dark:text-white mb-3">Evacuation Agents</h3>
               <p className="text-neutral-600 dark:text-neutral-400 leading-relaxed">
-                Instant notifications when disaster risk increases in your area. Stay informed, stay safe.
+                Deploy multiple evacuation agents with smart pathfinding to plan optimal routes avoiding emergency blocks.
               </p>
             </div>
 
@@ -171,9 +171,9 @@ export default function Home() {
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
                 </svg>
               </div>
-              <h3 className="text-xl font-semibold text-neutral-900 dark:text-white mb-3">Location-Based</h3>
+              <h3 className="text-xl font-semibold text-neutral-900 dark:text-white mb-3">Route Details</h3>
               <p className="text-neutral-600 dark:text-neutral-400 leading-relaxed">
-                GPS-enabled analysis for your current location or anywhere you choose on the map.
+                Get detailed route information including distance, duration, and status for each evacuation path.
               </p>
             </div>
 
@@ -181,12 +181,12 @@ export default function Home() {
             <div className="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-xl p-8 hover:shadow-lg transition-shadow">
               <div className="w-12 h-12 bg-neutral-900 dark:bg-white rounded-lg flex items-center justify-center mb-6">
                 <svg className="w-6 h-6 text-white dark:text-neutral-900" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
                 </svg>
               </div>
-              <h3 className="text-xl font-semibold text-neutral-900 dark:text-white mb-3">Evacuation Guidance</h3>
+              <h3 className="text-xl font-semibold text-neutral-900 dark:text-white mb-3">Safety Points</h3>
               <p className="text-neutral-600 dark:text-neutral-400 leading-relaxed">
-                AI-generated evacuation advice and safety recommendations based on risk analysis.
+                Locate nearby hospitals, police stations, fire departments, and emergency shelters along routes.
               </p>
             </div>
           </div>

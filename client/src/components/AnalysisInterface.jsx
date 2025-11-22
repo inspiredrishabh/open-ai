@@ -2,7 +2,7 @@ import React, { useState, useCallback } from "react";
 import MapView from "./MapView";
 import { analyze, aiAnalyze } from "../api";
 
-export default function AnalysisInterface() {
+export default function AnalysisInterface({ onCoordinateUpdate }) {
   const [lat, setLat] = useState("12.9716");
   const [lon, setLon] = useState("77.5946");
   const [file, setFile] = useState(null);
@@ -13,11 +13,21 @@ export default function AnalysisInterface() {
   const [useNASA, setUseNASA] = useState("true");
   const [date, setDate] = useState("");
   
+  // Helper function to update coordinates and notify parent
+  const updateCoordinates = useCallback((newLat, newLon) => {
+    setLat(newLat);
+    setLon(newLon);
+    if (onCoordinateUpdate) {
+      onCoordinateUpdate(parseFloat(newLat), parseFloat(newLon));
+    }
+  }, [onCoordinateUpdate]);
+
   // Handle map clicks to update coordinates
   const handleMapClick = useCallback((newLat, newLon) => {
-    setLat(newLat.toFixed(6));
-    setLon(newLon.toFixed(6));
-  }, []);
+    const newLatFixed = newLat.toFixed(6);
+    const newLonFixed = newLon.toFixed(6);
+    updateCoordinates(newLatFixed, newLonFixed);
+  }, [updateCoordinates]);
 
   // Get user's current location
   const getCurrentLocation = useCallback(() => {
@@ -30,8 +40,9 @@ export default function AnalysisInterface() {
     navigator.geolocation.getCurrentPosition(
       (position) => {
         const { latitude, longitude } = position.coords;
-        setLat(latitude.toFixed(6));
-        setLon(longitude.toFixed(6));
+        const newLat = latitude.toFixed(6);
+        const newLon = longitude.toFixed(6);
+        updateCoordinates(newLat, newLon);
         setLoading(false);
         // Optionally auto-analyze the current location
         // handleAnalyze will be called automatically when coordinates change
@@ -58,7 +69,7 @@ export default function AnalysisInterface() {
         maximumAge: 300000 // 5 minutes
       }
     );
-  }, []);
+  }, [updateCoordinates]);
 
   const handleAnalyze = useCallback(async (e) => {
     e.preventDefault();
@@ -224,7 +235,7 @@ export default function AnalysisInterface() {
                         step="any"
                         placeholder="Latitude"
                         value={lat}
-                        onChange={(e) => setLat(e.target.value)}
+                        onChange={(e) => updateCoordinates(e.target.value, lon)}
                         className="w-full p-3 bg-white dark:bg-neutral-700 border border-neutral-300 dark:border-neutral-600 rounded-lg text-neutral-900 dark:text-white placeholder-neutral-500 dark:placeholder-neutral-400 focus:border-neutral-500 dark:focus:border-neutral-400 focus:outline-none"
                       />
                       <input
@@ -232,7 +243,7 @@ export default function AnalysisInterface() {
                         step="any"
                         placeholder="Longitude"
                         value={lon}
-                        onChange={(e) => setLon(e.target.value)}
+                        onChange={(e) => updateCoordinates(lat, e.target.value)}
                         className="w-full p-3 bg-white dark:bg-neutral-700 border border-neutral-300 dark:border-neutral-600 rounded-lg text-neutral-900 dark:text-white placeholder-neutral-500 dark:placeholder-neutral-400 focus:border-neutral-500 dark:focus:border-neutral-400 focus:outline-none"
                       />
                     </div>
