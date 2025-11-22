@@ -1,392 +1,383 @@
-import React, { useState, useCallback, useEffect } from 'react';
-import MapView from './MapView';
-import { findPath, calculateDistance, findNearestSafetyPoints } from '../utils/pathfinding';
+import { useState } from 'react';
+import { MapContainer, TileLayer, Marker, Polyline, Popup, useMapEvents } from 'react-leaflet';
+import L from 'leaflet';
+import axios from 'axios';
+import 'leaflet/dist/leaflet.css';
 
-const agentColors = [
-  '#3b82f6', // blue
-  '#ef4444', // red
-  '#10b981', // emerald
-  '#f59e0b', // amber
-  '#8b5cf6', // violet
-  '#ec4899', // pink
-];
+// Fix for default marker icons
+delete L.Icon.Default.prototype._getIconUrl;
+L.Icon.Default.mergeOptions({
+  iconRetinaUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon-2x.png',
+  iconUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon.png',
+  shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png',
+});
 
-// Safety points data
-const safetyPointsData = [
-  { id: 1, type: 'hospital', name: 'City Hospital', lat: 28.6139, lon: 77.2090, icon: '♦' },
-  { id: 2, type: 'police', name: 'Police Station', lat: 28.6129, lon: 77.2295, icon: '■' },
-  { id: 3, type: 'fire', name: 'Fire Station', lat: 28.6169, lon: 77.2060, icon: '▲' },
-  { id: 4, type: 'shelter', name: 'Emergency Shelter', lat: 28.6180, lon: 77.2140, icon: '●' },
-  { id: 5, type: 'hospital', name: 'AIIMS', lat: 28.5672, lon: 77.2100, icon: '♦' },
-  { id: 6, type: 'police', name: 'Central Police', lat: 28.6280, lon: 77.2200, icon: '■' },
-];
+const agentColors = ['#3b82f6', '#8b5cf6', '#ec4899', '#f59e0b', '#10b981', '#06b6d4'];
 
-export default function EvacuationInterface({ initialLat = 28.6139, initialLon = 77.2090 }) {
+const EvacuationInterface = () => {
+  const [mapCenter] = useState([28.6139, 77.2090]); // Delhi coordinates
   const [agents, setAgents] = useState([]);
-  const [emergencyBlocks, setEmergencyBlocks] = useState([]);
-  const [routes, setRoutes] = useState([]);
-  const [safetyPoints, setSafetyPoints] = useState([]);
-  const [simulationRunning, setSimulationRunning] = useState(false);
-  const [mapCenter, setMapCenter] = useState({ lat: initialLat, lon: initialLon });
+  const [paths, setPaths] = useState([]);
+  const [agentPlacementMode, setAgentPlacementMode] = useState(false);
+  const [pendingAgent, setPendingAgent] = useState(null);
+  const [isRunning, setIsRunning] = useState(false);
 
-  // Update map center when initial coordinates change
-  useEffect(() => {
-    setMapCenter({ lat: initialLat, lon: initialLon });
-  }, [initialLat, initialLon]);
+  // Custom marker icons for start/end points
+  const createCustomIcon = (color, label) => {
+    return L.divIcon({
+      className: 'custom-marker',
+      html: `<div style="background-color: ${color}; width: 30px; height: 30px; border-radius: 50%; display: flex; align-items: center; justify-content: center; border: 3px solid white; box-shadow: 0 2px 8px rgba(0,0,0,0.3); font-weight: bold; color: white;">${label}</div>`,
+      iconSize: [30, 30],
+      iconAnchor: [15, 15],
+    });
+  };
 
-  // Add new evacuation agent
-  const addAgent = useCallback(() => {
-    const newAgent = {
-      id: Date.now(),
-      name: `Agent ${agents.length + 1}`,
-      start: null,
-      end: null,
-      color: agentColors[agents.length % agentColors.length]
-    };
-    setAgents(prev => [...prev, newAgent]);
-  }, [agents.length]);
+  // Map click handler component - MUST be inside MapContainer
+  const MapClickHandler = () => {
+    useMapEvents({
+      click: (e) => {
+        if (!agentPlacementMode) return;
 
-  // Remove agent
-  const removeAgent = useCallback((agentId) => {
-    setAgents(prev => prev.filter(a => a.id !== agentId));
-    setRoutes(prev => prev.filter(r => r.agentId !== agentId));
-  }, []);
+        const clickedPoint = [e.latlng.lat, e.latlng.lng];
 
-  // Add emergency block
-  const addEmergencyBlock = useCallback(() => {
-    const lat = prompt('Enter latitude for emergency block:');
-    const lon = prompt('Enter longitude for emergency block:');
-    
-    if (lat && lon) {
-      const newBlock = {
-        id: Date.now(),
-        lat: parseFloat(lat),
-        lon: parseFloat(lon),
-        radius: 0.002 // approximately 200m
-      };
-      setEmergencyBlocks(prev => [...prev, newBlock]);
-    }
-  }, []);
-
-  // Remove emergency block
-  const removeEmergencyBlock = useCallback((blockId) => {
-    setEmergencyBlocks(prev => prev.filter(b => b.id !== blockId));
-  }, []);
-
-  // Set agent start point
-  const setAgentStart = useCallback((agentId) => {
-    const lat = prompt('Enter start latitude:');
-    const lon = prompt('Enter start longitude:');
-    
-    if (lat && lon) {
-      setAgents(prev => prev.map(agent =>
-        agent.id === agentId
-          ? { ...agent, start: { lat: parseFloat(lat), lon: parseFloat(lon) } }
-          : agent
-      ));
-    }
-  }, []);
-
-  // Set agent end point
-  const setAgentEnd = useCallback((agentId) => {
-    const lat = prompt('Enter end latitude:');
-    const lon = prompt('Enter end longitude:');
-    
-    if (lat && lon) {
-      setAgents(prev => prev.map(agent =>
-        agent.id === agentId
-          ? { ...agent, end: { lat: parseFloat(lat), lon: parseFloat(lon) } }
-          : agent
-      ));
-    }
-  }, []);
-
-  // Run simulation
-  const runSimulation = useCallback(async () => {
-    setSimulationRunning(true);
-    const newRoutes = [];
-    const newSafetyPoints = [];
-
-    // Create blocked cells set
-    const blockedCells = new Set();
-    emergencyBlocks.forEach(block => {
-      // Create a grid of blocked cells around each emergency block
-      for (let latOffset = -block.radius; latOffset <= block.radius; latOffset += 0.0001) {
-        for (let lonOffset = -block.radius; lonOffset <= block.radius; lonOffset += 0.0001) {
-          const distance = Math.sqrt(latOffset * latOffset + lonOffset * lonOffset);
-          if (distance <= block.radius) {
-            const key = `${(block.lat + latOffset).toFixed(6)},${(block.lon + lonOffset).toFixed(6)}`;
-            blockedCells.add(key);
-          }
+        if (!pendingAgent) {
+          // Start new agent
+          const newAgent = {
+            id: Date.now(),
+            name: `Agent ${agents.length + 1}`,
+            start: clickedPoint,
+            end: null,
+            color: agentColors[agents.length % agentColors.length],
+          };
+          setPendingAgent(newAgent);
+        } else if (!pendingAgent.end) {
+          // Complete the agent
+          const completedAgent = { ...pendingAgent, end: clickedPoint };
+          setAgents((prev) => [...prev, completedAgent]);
+          setPendingAgent(null);
+          setAgentPlacementMode(false);
         }
-      }
+      },
     });
 
-    // Calculate routes for each agent
-    for (const agent of agents) {
-      if (agent.start && agent.end) {
-        const path = findPath([], agent.start, agent.end, blockedCells);
-        
-        if (path.length > 0) {
-          const distance = calculateDistance(agent.start, agent.end);
-          const nearbyPoints = findNearestSafetyPoints(path, safetyPointsData);
-          
-          newRoutes.push({
-            agentId: agent.id,
-            path,
-            distance: distance.toFixed(2),
-            duration: Math.round(distance * 12), // Assume 5 km/h walking speed
-            status: 'clear',
-            color: agent.color
-          });
+    return null; // This component doesn't render anything
+  };
 
-          newSafetyPoints.push(...nearbyPoints);
-        } else {
-          newRoutes.push({
-            agentId: agent.id,
-            path: [],
-            distance: 0,
-            duration: 0,
-            status: 'blocked',
-            error: 'No path available due to emergency blocks',
-            color: agent.color
-          });
+  // Get real road-based routes using OSRM (Open Source Routing Machine)
+  const getRoadRoute = async (start, end) => {
+    try {
+      // Using OSRM public API (more reliable and free)
+      const response = await axios.get(
+        `https://router.project-osrm.org/route/v1/driving/${start[1]},${start[0]};${end[1]},${end[0]}?overview=full&geometries=geojson`
+      );
+      
+      if (response.data.code === 'Ok' && response.data.routes && response.data.routes[0]) {
+        const route = response.data.routes[0];
+        // OSRM returns coordinates in [lon, lat] format, we need [lat, lon]
+        const coordinates = route.geometry.coordinates.map(coord => [coord[1], coord[0]]);
+        const distance = (route.distance / 1000).toFixed(2);
+        const duration = Math.round(route.duration / 60);
+        
+        return { coordinates, distance, duration, blocked: false, impossible: false };
+      }
+    } catch (error) {
+      console.warn('OSRM failed, trying alternative...', error.message);
+      
+      // Try OpenRouteService as backup
+      try {
+        const response = await axios.post(
+          'https://api.openrouteservice.org/v2/directions/driving-car/geojson',
+          {
+            coordinates: [[start[1], start[0]], [end[1], end[0]]]
+          },
+          {
+            headers: {
+              'Authorization': '5b3ce3597851110001cf6248ddeae75119fa4c62b25a72c0fd5068a9',
+              'Content-Type': 'application/json'
+            }
+          }
+        );
+        
+        if (response.data.features && response.data.features[0]) {
+          const route = response.data.features[0];
+          const coordinates = route.geometry.coordinates.map(coord => [coord[1], coord[0]]);
+          const distance = (route.properties.segments[0].distance / 1000).toFixed(2);
+          const duration = Math.round(route.properties.segments[0].duration / 60);
+          
+          return { coordinates, distance, duration, blocked: false, impossible: false };
         }
+      } catch (orsError) {
+        console.warn('OpenRouteService also failed:', orsError.message);
       }
     }
+    
+    // Fallback to straight line only if all APIs fail
+    const distance = calculateDistance(start, end);
+    return {
+      coordinates: [start, end],
+      distance: distance.toFixed(2),
+      duration: Math.round(distance * 12),
+      blocked: false,
+      impossible: false,
+    };
+  };
 
-    setRoutes(newRoutes);
-    setSafetyPoints(newSafetyPoints);
-    setSimulationRunning(false);
-  }, [agents, emergencyBlocks]);
+  // Calculate distance between two points (in km)
+  const calculateDistance = (point1, point2) => {
+    const R = 6371;
+    const dLat = ((point2[0] - point1[0]) * Math.PI) / 180;
+    const dLon = ((point2[1] - point1[1]) * Math.PI) / 180;
+    const a =
+      Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+      Math.cos((point1[0] * Math.PI) / 180) *
+        Math.cos((point2[0] * Math.PI) / 180) *
+        Math.sin(dLon / 2) *
+        Math.sin(dLon / 2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    return R * c;
+  };
+
+  const toggleAgentPlacementMode = () => {
+    setAgentPlacementMode(!agentPlacementMode);
+    setPendingAgent(null);
+  };
+
+  const clearAll = () => {
+    setAgents([]);
+    setPaths([]);
+    setPendingAgent(null);
+  };
+
+  // Real road-based pathfinding simulation
+  const runSimulation = async () => {
+    if (agents.length === 0) {
+      alert('Please add at least one agent');
+      return;
+    }
+
+    const invalidAgents = agents.filter(a => !a.start || !a.end);
+    if (invalidAgents.length > 0) {
+      alert('Please set start and end points for all agents');
+      return;
+    }
+
+    setIsRunning(true);
+    const newPaths = [];
+
+    for (const agent of agents) {
+      const routeData = await getRoadRoute(agent.start, agent.end);
+      newPaths.push({
+        id: agent.id,
+        ...routeData,
+        color: agent.color,
+      });
+    }
+
+    setPaths(newPaths);
+    setIsRunning(false);
+  };
 
   return (
-    <div className="min-h-screen bg-neutral-900 text-white">
-      {/* Header Section */}
-      <div className="bg-neutral-800 border-b border-neutral-700 py-4">
-        <div className="max-w-7xl mx-auto px-6">
-          <h1 className="text-3xl font-bold text-white">Emergency Evacuation Planning</h1>
-          <p className="text-neutral-400 mt-2">Plan optimal evacuation routes with multiple agents and safety point detection</p>
+    <div className="min-h-screen bg-neutral-700">
+      {/* Header */}
+      <div className="bg-neutral-800 border-b border-neutral-600 py-6">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <h1 className="text-3xl font-bold bg-gradient-to-r from-blue-400 to-purple-500 bg-clip-text text-transparent">
+            🚨 Emergency Evacuation Planning
+          </h1>
+          <p className="text-neutral-400 mt-2">
+            Plan optimal evacuation routes with real road routing and multi-agent coordination
+          </p>
         </div>
       </div>
-      
-      <div className="flex flex-col">
-        {/* Map Section */}
-        <div className="bg-neutral-800 border-t border-neutral-700 py-6">
-          <div className="max-w-7xl mx-auto px-6">
-            <div className="mb-4">
-              <p className="text-neutral-400 text-sm">
-                Current Location: {mapCenter.lat.toFixed(4)}, {mapCenter.lon.toFixed(4)}
-              </p>
-            </div>
-            <div className="bg-neutral-700 rounded-lg overflow-hidden border border-neutral-600" style={{ height: '400px' }}>
-              <MapView 
-                lat={mapCenter.lat} 
-                lon={mapCenter.lon}
-                onMapClick={() => {}}
-              />
-            </div>
-          </div>
-        </div>
 
-        {/* Control panels section */}
-        <div className="min-h-[50vh] bg-neutral-800 p-6 overflow-y-auto">
-          <div className="max-w-7xl mx-auto">
-            <h2 className="text-2xl font-bold mb-6 text-white">Evacuation Control Center</h2>
-            
-            <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
-              {/* Evacuation Agents */}
-              <div className="bg-neutral-700 rounded-lg p-4 border border-neutral-600">
-                <div className="flex items-center gap-2 mb-4">
-                  <div className="w-6 h-6 bg-blue-500 rounded-full flex items-center justify-center">
-                    <div className="w-2 h-2 bg-white rounded-full"></div>
-                  </div>
-                  <h3 className="text-lg font-semibold text-white">Evacuation Agents</h3>
+      {/* Main Content */}
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          {/* Left Column - Map */}
+          <div className="lg:col-span-2">
+            <div className="bg-black rounded-lg overflow-hidden shadow-lg border border-neutral-600">
+              {agentPlacementMode && pendingAgent && (
+                <div className="bg-gradient-to-r from-blue-500 to-purple-600 px-4 py-3 text-white text-sm font-medium">
+                  🎯 {pendingAgent.start ? 'Click on map to set END point' : 'Click on map to set START point'}
                 </div>
-                
-                <button
-                  onClick={addAgent}
-                  className="w-full bg-blue-600 hover:bg-blue-700 text-white py-2 px-4 rounded-lg mb-4 transition-colors"
+              )}
+              
+              <div style={{ height: '600px', position: 'relative' }}>
+                <MapContainer
+                  center={mapCenter}
+                  zoom={12}
+                  style={{ height: '100%', width: '100%' }}
+                  scrollWheelZoom={true}
                 >
-                  + Add Evacuation Agent
-                </button>
-                
-                <div className="text-sm text-neutral-300 mb-2">
-                  Active Agents: <span className="text-blue-400">{agents.length}</span>
-                </div>
-                
-                <button
-                  onClick={runSimulation}
-                  disabled={agents.length === 0 || simulationRunning}
-                  className="w-full bg-red-600 hover:bg-red-700 disabled:bg-neutral-600 text-white py-2 px-4 rounded-lg transition-colors"
-                >
-                  {simulationRunning ? 'Running...' : 'Run Simulation'}
-                </button>
-              </div>
+                  <TileLayer
+                    url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+                    attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+                  />
 
-              {/* Emergency Blocks */}
-              <div className="bg-neutral-700 rounded-lg p-4 border border-neutral-600">
-                <div className="flex items-center gap-2 mb-4">
-                  <div className="w-6 h-6 bg-orange-500 rounded-full flex items-center justify-center">
-                    <div className="w-3 h-0.5 bg-white rounded"></div>
-                  </div>
-                  <h3 className="text-lg font-semibold text-white">Emergency Blocks</h3>
-                </div>
-                
-                <button
-                  onClick={addEmergencyBlock}
-                  className="w-full bg-orange-600 hover:bg-orange-700 text-white py-2 px-4 rounded-lg mb-4 transition-colors"
-                >
-                  Add Road Block
-                </button>
-                
-                <div className="text-sm text-neutral-300">
-                  Active Blocks: <span className="text-orange-400">{emergencyBlocks.length}</span>
-                </div>
-              </div>
+                  {/* Map click handler - must be inside MapContainer */}
+                  <MapClickHandler />
 
-              {/* Route Results */}
-              <div className="bg-neutral-700 rounded-lg p-4 border border-neutral-600">
-                <div className="flex items-center gap-2 mb-4">
-                  <div className="w-6 h-6 bg-green-500 rounded-full flex items-center justify-center">
-                    <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7" />
-                    </svg>
-                  </div>
-                  <h3 className="text-lg font-semibold text-white">Route Results</h3>
-                </div>
-                
-                {routes.length === 0 ? (
-                  <div className="text-center py-8 text-neutral-400">
-                    <div className="w-12 h-12 bg-neutral-600 rounded-full flex items-center justify-center mx-auto mb-3">
-                      <svg className="w-6 h-6 text-neutral-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7" />
-                      </svg>
-                    </div>
-                    <div className="text-sm">No routes calculated yet</div>
-                    <div className="text-xs mt-1">Add evacuation agents and run simulation</div>
-                  </div>
-                ) : (
-                  <div className="space-y-2">
-                    {routes.map(route => (
-                      <div key={route.agentId} className="text-xs bg-neutral-600 rounded p-2 border border-neutral-500">
-                        <div className="flex items-center gap-2">
-                          <div 
-                            className="w-3 h-3 rounded-full" 
-                            style={{ backgroundColor: route.color }}
-                          ></div>
-                          <span className="text-white font-medium">Agent {route.agentId}</span>
-                        </div>
-                        {route.path.length > 0 ? (
-                          <div className="text-neutral-300 mt-1">
-                            <div>Distance: {route.distance} km</div>
-                            <div>Duration: {route.duration} min</div>
-                          </div>
-                        ) : (
-                          <div className="text-red-400 mt-1">No path found</div>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
+                  {/* Render pending agent */}
+                  {pendingAgent && pendingAgent.start && (
+                    <Marker
+                      position={pendingAgent.start}
+                      icon={createCustomIcon(pendingAgent.color, 'S')}
+                    >
+                      <Popup>{pendingAgent.name} - Start</Popup>
+                    </Marker>
+                  )}
 
-              {/* Safety Points */}
-              <div className="bg-neutral-700 rounded-lg p-4 border border-neutral-600">
-                <div className="flex items-center gap-2 mb-4">
-                  <div className="w-6 h-6 bg-purple-500 rounded-full flex items-center justify-center">
-                    <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
-                    </svg>
-                  </div>
-                  <h3 className="text-lg font-semibold text-white">Nearby Safety Points</h3>
-                </div>
-                
-                {safetyPoints.length === 0 ? (
-                  <div className="text-center py-4 text-neutral-400 text-sm">
-                    Run simulation to find nearby safety points
-                  </div>
-                ) : (
-                  <div className="space-y-2 max-h-40 overflow-y-auto">
-                    {safetyPoints.slice(0, 5).map((point, index) => (
-                      <div key={index} className="text-xs bg-neutral-600 rounded p-2 border border-neutral-500">
-                        <div className="flex items-center gap-2 text-white">
-                          <div className="w-4 h-4 bg-purple-500 rounded-full flex items-center justify-center">
-                            <div className="w-1.5 h-1.5 bg-white rounded-full"></div>
-                          </div>
-                          <span className="font-medium">{point.name}</span>
-                        </div>
-                        <div className="text-neutral-300 mt-1">
-                          <div>Type: {point.type}</div>
-                          <div>Distance: {point.distance?.toFixed(2)} km</div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </div>
-
-            {/* Agent Configuration */}
-            {agents.length > 0 && (
-              <div className="mt-6 bg-neutral-700 rounded-lg p-4">
-                <h3 className="text-lg font-semibold mb-4 text-white">Configure Agents</h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                  {agents.map(agent => (
-                    <div key={agent.id} className="bg-neutral-600 rounded-lg p-3 border border-neutral-500">
-                      <div className="flex items-center justify-between mb-2">
-                        <div className="flex items-center gap-2">
-                          <div 
-                            className="w-4 h-4 rounded-full" 
-                            style={{ backgroundColor: agent.color }}
-                          ></div>
-                          <span className="font-medium text-white">{agent.name}</span>
-                        </div>
-                        <button
-                          onClick={() => removeAgent(agent.id)}
-                          className="text-red-500 hover:text-red-700 text-xs"
+                  {/* Render completed agents */}
+                  {agents.map((agent) => (
+                    <div key={agent.id}>
+                      {agent.start && (
+                        <Marker
+                          position={agent.start}
+                          icon={createCustomIcon(agent.color, 'S')}
                         >
-                          Remove
-                        </button>
-                      </div>
-                      
-                      <div className="space-y-2">
-                        <button
-                          onClick={() => setAgentStart(agent.id)}
-                          className="w-full py-1 px-2 rounded text-xs transition-colors bg-green-100 text-green-800 hover:bg-green-200"
+                          <Popup>{agent.name} - Start</Popup>
+                        </Marker>
+                      )}
+                      {agent.end && (
+                        <Marker
+                          position={agent.end}
+                          icon={createCustomIcon(agent.color, 'E')}
                         >
-                          {agent.start ? `Start: ${agent.start.lat.toFixed(3)}, ${agent.start.lon.toFixed(3)}` : 'Set Start Point'}
-                        </button>
-                        
-                        <button
-                          onClick={() => setAgentEnd(agent.id)}
-                          className="w-full py-1 px-2 rounded text-xs transition-colors bg-red-100 text-red-800 hover:bg-red-200"
-                        >
-                          {agent.end ? `End: ${agent.end.lat.toFixed(3)}, ${agent.end.lon.toFixed(3)}` : 'Set End Point'}
-                        </button>
-                      </div>
+                          <Popup>{agent.name} - End</Popup>
+                        </Marker>
+                      )}
                     </div>
                   ))}
-                </div>
-              </div>
-            )}
 
-            {/* Instructions */}
-            <div className="mt-6 bg-blue-900/20 border border-blue-800 rounded-lg p-4">
-              <h3 className="text-lg font-semibold text-blue-200 mb-2">How to Use</h3>
-              <div className="grid grid-cols-1 md:grid-cols-4 gap-4 text-sm text-blue-300">
-                <div>
-                  <strong>1. Add Agents:</strong> Click "Add Evacuation Agent" to create evacuation routes
-                </div>
-                <div>
-                  <strong>2. Set Points:</strong> Click agent buttons and enter latitude/longitude coordinates
-                </div>
-                <div>
-                  <strong>3. Add Blocks:</strong> Click "Add Road Block" and enter coordinates for blocked areas
-                </div>
-                <div>
-                  <strong>4. Run Simulation:</strong> Calculate optimal routes and view safety points
-                </div>
+                  {/* Render paths */}
+                  {paths.map((path) => (
+                    <Polyline
+                      key={path.id}
+                      positions={path.coordinates}
+                      color={path.color}
+                      weight={4}
+                      opacity={0.7}
+                      dashArray={path.blocked ? '10, 10' : null}
+                    />
+                  ))}
+                </MapContainer>
+              </div>
+            </div>
+          </div>
+
+          {/* Right Column - Controls */}
+          <div className="space-y-4">
+            {/* Quick Actions Card */}
+            <div className="bg-black rounded-lg p-4 shadow-lg border border-neutral-600">
+              <h3 className="text-lg font-bold text-white mb-4">🎮 Quick Actions</h3>
+              <div className="space-y-2">
+                <button
+                  onClick={toggleAgentPlacementMode}
+                  className={`w-full py-2 px-4 rounded-md font-medium transition-all ${
+                    agentPlacementMode
+                      ? 'bg-gradient-to-r from-purple-600 to-pink-600 text-white'
+                      : 'bg-gradient-to-r from-blue-500 to-purple-600 text-white hover:from-blue-600 hover:to-purple-700'
+                  }`}
+                >
+                  {agentPlacementMode ? '✓ Agent Placement Active' : '+ Quick Add Agent'}
+                </button>
+
+                <button
+                  onClick={runSimulation}
+                  disabled={agents.length === 0 || isRunning}
+                  className="w-full bg-gradient-to-r from-green-500 to-emerald-600 text-white py-2 px-4 rounded-md hover:from-green-600 hover:to-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed font-medium transition-all"
+                >
+                  {isRunning ? '⏳ Running...' : '▶️ Run Simulation'}
+                </button>
+
+                <button
+                  onClick={clearAll}
+                  disabled={agents.length === 0}
+                  className="w-full bg-gradient-to-r from-red-500 to-pink-600 text-white py-2 px-4 rounded-md hover:from-red-600 hover:to-pink-700 disabled:opacity-50 disabled:cursor-not-allowed font-medium transition-all"
+                >
+                  🗑️ Clear All
+                </button>
+              </div>
+            </div>
+
+            {/* Route Results Card */}
+            <div className="bg-black rounded-lg p-4 shadow-lg border border-neutral-600">
+              <h3 className="text-lg font-bold text-white mb-4">📊 Route Results</h3>
+              <div className="space-y-3">
+                {paths.length === 0 ? (
+                  <div className="text-center py-8">
+                    <div className="text-4xl mb-2">🗺️</div>
+                    <p className="text-neutral-400 text-sm">No routes calculated yet</p>
+                    <p className="text-neutral-500 text-xs mt-1">Add agents and run simulation</p>
+                  </div>
+                ) : (
+                  <div className="space-y-3 max-h-96 overflow-y-auto">
+                    {paths.map(path => {
+                      const agent = agents.find(a => a.id === path.id);
+                      return (
+                        <div
+                          key={path.id}
+                          className="bg-neutral-800 rounded-md p-3 border-l-4"
+                          style={{ borderColor: path.color }}
+                        >
+                          <div className="flex items-center justify-between mb-2">
+                            <span className="font-semibold text-white">{agent?.name || 'Agent'}</span>
+                            <span className={`text-xs px-2 py-1 rounded ${
+                              path.impossible ? 'bg-red-500/20 text-red-400' : 
+                              path.blocked ? 'bg-yellow-500/20 text-yellow-400' :
+                              'bg-green-500/20 text-green-400'
+                            }`}>
+                              {path.impossible ? '❌ Impossible' : path.blocked ? '⚠️ Blocked' : '✅ Clear'}
+                            </span>
+                          </div>
+                          <div className="grid grid-cols-2 gap-2 text-sm">
+                            <div className="text-neutral-400">Distance:</div>
+                            <div className="text-white font-medium">{path.distance} km</div>
+                            <div className="text-neutral-400">Duration:</div>
+                            <div className="text-white font-medium">{path.duration} min</div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Agents List Card */}
+            <div className="bg-black rounded-lg p-4 shadow-lg border border-neutral-600">
+              <h3 className="text-lg font-bold text-white mb-4">👥 Agents ({agents.length})</h3>
+              <div className="space-y-2 max-h-64 overflow-y-auto">
+                {agents.map(agent => (
+                  <div 
+                    key={agent.id}
+                    className="bg-neutral-800 rounded-md p-3 border-l-4"
+                    style={{ borderColor: agent.color }}
+                  >
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="font-semibold text-white">{agent.name}</span>
+                      <button
+                        onClick={() => setAgents(prev => prev.filter(a => a.id !== agent.id))}
+                        className="text-red-400 hover:text-red-300 text-sm"
+                      >
+                        ✕
+                      </button>
+                    </div>
+                    <div className="flex gap-2 text-xs">
+                      <span className={`px-2 py-1 rounded ${
+                        agent.start ? 'bg-green-500/20 text-green-400' : 'bg-neutral-700 text-neutral-500'
+                      }`}>
+                        {agent.start ? '✓ Start' : '○ Start'}
+                      </span>
+                      <span className={`px-2 py-1 rounded ${
+                        agent.end ? 'bg-blue-500/20 text-blue-400' : 'bg-neutral-700 text-neutral-500'
+                      }`}>
+                        {agent.end ? '✓ End' : '○ End'}
+                      </span>
+                    </div>
+                  </div>
+                ))}
               </div>
             </div>
           </div>
@@ -394,4 +385,6 @@ export default function EvacuationInterface({ initialLat = 28.6139, initialLon =
       </div>
     </div>
   );
-}
+};
+
+export default EvacuationInterface;
