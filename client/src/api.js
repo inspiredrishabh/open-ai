@@ -4,7 +4,7 @@ import axios from "axios";
 const API_BASE =
   import.meta.env.VITE_API_BASE ||
   (import.meta.env.PROD
-    ? "https://flood-risk-server.onrender.com" // Replace with your actual server URL
+    ? "https://open-ai-buildathon-sever.onrender.com" // Replace with your actual server URL
     : "http://localhost:5000");
 
 export async function analyze({

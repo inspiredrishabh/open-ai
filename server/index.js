@@ -13,7 +13,7 @@ const corsOptions = {
   origin:
     process.env.NODE_ENV === "production"
       ? [
-          "https://your-app-name.onrender.com", // Replace with your actual Render URL
+          "https://open-ai-buildathon-sever.onrender.com", // Replace with your actual Render URL
           "https://www.your-domain.com", // Add your custom domain if any
         ]
       : ["http://localhost:3000", "http://localhost:5173"], // Vite dev server
