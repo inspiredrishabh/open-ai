@@ -1,33 +1,28 @@
 {
   "name": "mvp-merngpt-server",
   "version": "1.0.0",
-  "description": "Flood risk analysis server",
-  "type": "module",
+  "description": "",
   "main": "index.js",
+  "type": "module",
   "scripts": {
     "start": "node index.js",
     "dev": "nodemon index.js",
-    "build": "echo 'No build needed for server'"
+    "test": "echo \"Error: no test specified\" && exit 1"
   },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
   "dependencies": {
-    "express": "^4.19.2",
+    "axios": "^1.13.2",
     "cors": "^2.8.5",
-    "dotenv": "^16.4.5",
-    "multer": "^1.4.5-lts.1",
-    "axios": "^1.13.2"
+    "dotenv": "^16.0.0",
+    "express": "^4.18.0",
+    "multer": "^1.4.5-lts.1"
   },
   "devDependencies": {
-    "nodemon": "^3.1.0"
+    "nodemon": "^3.0.0"
   },
   "engines": {
     "node": ">=18.0.0"
-  },
-  "keywords": [
-    "flood",
-    "disaster",
-    "ai",
-    "satellite"
-  ],
-  "author": "Your Name",
-  "license": "ISC"
+  }
 }

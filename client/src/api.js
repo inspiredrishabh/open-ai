@@ -4,8 +4,19 @@ import axios from "axios";
 const API_BASE =
   import.meta.env.VITE_API_BASE ||
   (import.meta.env.PROD
-    ? "https://open-ai-buildathon-sever.onrender.com" // Replace with your actual server URL
+    ? "https://open-ai-buildathon-sever.onrender.com"
     : "http://localhost:5000");
+
+console.log("API Base URL:", API_BASE);
+
+// Create axios instance with default config
+const apiClient = axios.create({
+  baseURL: API_BASE,
+  timeout: 120000,
+  headers: {
+    "Content-Type": "multipart/form-data",
+  },
+});
 
 export async function analyze({
   latitude,
@@ -24,13 +35,23 @@ export async function analyze({
   if (file) fd.append("satelliteImage", file);
 
   try {
-    const resp = await axios.post(`${API_BASE}/api/analyze`, fd, {
-      headers: { "Content-Type": "multipart/form-data" },
-      timeout: 120000,
-    });
+    console.log("Making API request to:", `${API_BASE}/api/analyze`);
+    const resp = await apiClient.post("/api/analyze", fd);
     return resp.data;
   } catch (error) {
     console.error("API Error:", error);
+    console.error("Error response:", error.response);
+    console.error("Error message:", error.message);
+
+    if (
+      error.code === "NETWORK_ERR" ||
+      error.message.includes("Network Error")
+    ) {
+      throw new Error(
+        `Network error: Unable to connect to server at ${API_BASE}`
+      );
+    }
+
     throw error;
   }
 }
