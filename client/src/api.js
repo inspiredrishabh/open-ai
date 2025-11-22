@@ -57,11 +57,18 @@ export async function analyze({
   }
 }
 
-export async function aiAnalyze({ weatherData, imageBase64, imageMime }) {
+export async function aiAnalyze({ weatherData, earthquakeData, aqiData, airQualityData, elevationData, marineData, climateData, radiationData, imageBase64, imageMime }) {
   try {
     console.log("Making AI analysis request to:", `${API_BASE}/api/ai-analyze`);
     const resp = await apiClient.post("/api/ai-analyze", {
       weatherData,
+      earthquakeData,
+      aqiData,
+      airQualityData,
+      elevationData,
+      marineData,
+      climateData,
+      radiationData,
       imageBase64,
       imageMime,
     });
