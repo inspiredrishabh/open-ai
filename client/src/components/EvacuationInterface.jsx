@@ -456,162 +456,175 @@ const EvacuationInterface = () => {
   };
 
   return (
-    <div className="min-h-screen bg-neutral-700">
-      <div className="bg-neutral-800 border-b border-neutral-600 py-6">
+    <div className="min-h-screen bg-neutral-900">
+      {/* Header */}
+      <div className="bg-neutral-800 border-b border-neutral-700 py-6">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <h1 className="text-3xl font-bold bg-gradient-to-r from-blue-400 to-purple-500 bg-clip-text text-transparent">
-            🚨 Emergency Evacuation Planning
-          </h1>
-          <p className="text-neutral-400 mt-2">
-            Plan optimal evacuation routes with real road routing, road blocks, and multi-agent coordination
-          </p>
+          <div className="flex items-center gap-3">
+            <div className="text-4xl">🚨</div>
+            <div>
+              <h1 className="text-3xl font-bold text-white">
+                Emergency Evacuation Planning
+              </h1>
+              <p className="text-neutral-400 mt-1">
+                Plan optimal evacuation routes with real road routing, road blocks, and multi-agent coordination
+              </p>
+            </div>
+          </div>
         </div>
       </div>
 
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          <div className="lg:col-span-2">
-            <div className="bg-black rounded-lg overflow-hidden shadow-lg border border-neutral-600">
-              {agentPlacementMode && pendingAgent && (
-                <div className="bg-gradient-to-r from-blue-500 to-purple-600 px-4 py-3 text-white text-sm font-medium">
-                  🎯 {pendingAgent.start ? 'Click on map to set END point' : 'Click on map to set START point'}
-                </div>
-              )}
-              {blockPlacementMode && (
-                <div className="bg-gradient-to-r from-red-500 to-pink-600 px-4 py-3 text-white text-sm font-medium">
-                  🚫 Click on map to place ROAD BLOCK
-                </div>
-              )}
-              
-              <div style={{ height: '600px', position: 'relative' }}>
-                <MapContainer
-                  center={mapCenter}
-                  zoom={12}
-                  style={{ height: '100%', width: '100%' }}
-                  scrollWheelZoom={true}
-                >
-                  <TileLayer
-                    url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-                    attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
-                  />
-
-                  <MapClickHandler />
-
-                  {pendingAgent && pendingAgent.start && (
-                    <Marker
-                      position={pendingAgent.start}
-                      icon={createCustomIcon(pendingAgent.color, 'S')}
-                    >
-                      <Popup>{pendingAgent.name} - Start</Popup>
-                    </Marker>
-                  )}
-
-                  {agents.map((agent) => (
-                    <div key={agent.id}>
-                      {agent.start && (
-                        <Marker
-                          position={agent.start}
-                          icon={createCustomIcon(agent.color, 'S')}
-                        >
-                          <Popup>{agent.name} - Start</Popup>
-                        </Marker>
-                      )}
-                      {agent.end && (
-                        <Marker
-                          position={agent.end}
-                          icon={createCustomIcon(agent.color, 'E')}
-                        >
-                          <Popup>{agent.name} - End</Popup>
-                        </Marker>
-                      )}
-                    </div>
-                  ))}
-
-                  {paths.map((path) => {
-                    // Alternative routes are green and solid
-                    const routeColor = path.isAlternative ? '#10b981' : (path.blocked ? '#fbbf24' : path.color);
-                    const routeWeight = path.isAlternative ? 5 : 4;
-                    const routeOpacity = path.isAlternative ? 0.9 : (path.blocked ? 0.5 : 0.7);
-                    const routeDash = path.blocked && !path.isAlternative ? '10, 10' : null;
-                    
-                    return (
-                      <Polyline
-                        key={path.id}
-                        positions={path.coordinates}
-                        color={routeColor}
-                        weight={routeWeight}
-                        opacity={routeOpacity}
-                        dashArray={routeDash}
-                      />
-                    );
-                  })}
-
-                  {roadBlocks.map((block) => (
-                    <div key={block.id}>
-                      <Marker
-                        position={block.position}
-                        icon={createBlockIcon()}
-                      >
-                        <Popup>
-                          <div className="text-center">
-                            <p className="font-bold text-red-600">Road Block</p>
-                            <p className="text-xs text-gray-600">Radius: {block.radius} km</p>
-                            <button
-                              onClick={() => removeBlock(block.id)}
-                              className="mt-2 bg-red-500 text-white px-3 py-1 rounded text-xs hover:bg-red-600"
-                            >
-                              Remove
-                            </button>
-                          </div>
-                        </Popup>
-                      </Marker>
-                      <Circle
-                        center={block.position}
-                        radius={block.radius * 1000}
-                        pathOptions={{
-                          color: '#ef4444',
-                          fillColor: '#ef4444',
-                          fillOpacity: 0.2,
-                          weight: 2
-                        }}
-                      />
-                    </div>
-                  ))}
-                </MapContainer>
+      {/* Map Section - Full Width */}
+      <div className="bg-neutral-800 border-b border-neutral-700">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+          <div className="bg-black rounded-lg overflow-hidden shadow-lg border border-neutral-700">
+            {agentPlacementMode && pendingAgent && (
+              <div className="bg-blue-600 px-4 py-3 text-white text-sm font-medium">
+                🎯 {pendingAgent.start ? 'Click on map to set END point' : 'Click on map to set START point'}
               </div>
+            )}
+            {blockPlacementMode && (
+              <div className="bg-neutral-700 px-4 py-3 text-white text-sm font-medium">
+                🚫 Click on map to place ROAD BLOCK
+              </div>
+            )}
+            
+            <div style={{ height: '500px', position: 'relative' }}>
+              <MapContainer
+                center={mapCenter}
+                zoom={12}
+                style={{ height: '100%', width: '100%' }}
+                scrollWheelZoom={true}
+              >
+                <TileLayer
+                  url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+                  attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+                />
+
+                <MapClickHandler />
+
+                {pendingAgent && pendingAgent.start && (
+                  <Marker
+                    position={pendingAgent.start}
+                    icon={createCustomIcon(pendingAgent.color, 'S')}
+                  >
+                    <Popup>{pendingAgent.name} - Start</Popup>
+                  </Marker>
+                )}
+
+                {agents.map((agent) => (
+                  <div key={agent.id}>
+                    {agent.start && (
+                      <Marker
+                        position={agent.start}
+                        icon={createCustomIcon(agent.color, 'S')}
+                      >
+                        <Popup>{agent.name} - Start</Popup>
+                      </Marker>
+                    )}
+                    {agent.end && (
+                      <Marker
+                        position={agent.end}
+                        icon={createCustomIcon(agent.color, 'E')}
+                      >
+                        <Popup>{agent.name} - End</Popup>
+                      </Marker>
+                    )}
+                  </div>
+                ))}
+
+                {paths.map((path) => {
+                  // Alternative routes are green and solid
+                  const routeColor = path.isAlternative ? '#10b981' : (path.blocked ? '#fbbf24' : path.color);
+                  const routeWeight = path.isAlternative ? 5 : 4;
+                  const routeOpacity = path.isAlternative ? 0.9 : (path.blocked ? 0.5 : 0.7);
+                  const routeDash = path.blocked && !path.isAlternative ? '10, 10' : null;
+                  
+                  return (
+                    <Polyline
+                      key={path.id}
+                      positions={path.coordinates}
+                      color={routeColor}
+                      weight={routeWeight}
+                      opacity={routeOpacity}
+                      dashArray={routeDash}
+                    />
+                  );
+                })}
+
+                {roadBlocks.map((block) => (
+                  <div key={block.id}>
+                    <Marker
+                      position={block.position}
+                      icon={createBlockIcon()}
+                    >
+                      <Popup>
+                        <div className="text-center">
+                          <p className="font-bold text-red-600">Road Block</p>
+                          <p className="text-xs text-gray-600">Radius: {block.radius} km</p>
+                          <button
+                            onClick={() => removeBlock(block.id)}
+                            className="mt-2 bg-red-500 text-white px-3 py-1 rounded text-xs hover:bg-red-600"
+                          >
+                            Remove
+                          </button>
+                        </div>
+                      </Popup>
+                    </Marker>
+                    <Circle
+                      center={block.position}
+                      radius={block.radius * 1000}
+                      pathOptions={{
+                        color: '#ef4444',
+                        fillColor: '#ef4444',
+                        fillOpacity: 0.2,
+                        weight: 2
+                      }}
+                    />
+                  </div>
+                ))}
+              </MapContainer>
             </div>
           </div>
+        </div>
+      </div>
 
-          <div className="space-y-4">
-            <div className="bg-black rounded-lg p-4 shadow-lg border border-neutral-600">
-              <h3 className="text-lg font-bold text-white mb-4">🎮 Quick Actions</h3>
+      {/* Controls Section - Below Map */}
+      <div className="bg-neutral-900 py-8">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            {/* Quick Actions Card */}
+            <div className="bg-black rounded-lg p-4 shadow-lg border border-neutral-700">
+              <h3 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
+                <span className="text-blue-500">🎮</span> Quick Actions
+              </h3>
               <div className="space-y-2">
                 <button
                   onClick={toggleAgentPlacementMode}
-                  className={`w-full py-2 px-4 rounded-md font-medium transition-all ${
+                  className={`w-full py-2.5 px-4 rounded-md font-medium transition-all ${
                     agentPlacementMode
-                      ? 'bg-gradient-to-r from-purple-600 to-pink-600 text-white'
-                      : 'bg-gradient-to-r from-blue-500 to-purple-600 text-white hover:from-blue-600 hover:to-purple-700'
+                      ? 'bg-blue-600 text-white shadow-lg'
+                      : 'bg-neutral-800 text-white hover:bg-neutral-700 border border-neutral-600'
                   }`}
                 >
-                  {agentPlacementMode ? '✓ Agent Placement Active' : '+ Quick Add Agent'}
+                  {agentPlacementMode ? '✓ Agent Mode Active' : '+ Add Agent'}
                 </button>
 
                 <button
                   onClick={toggleBlockPlacementMode}
-                  className={`w-full py-2 px-4 rounded-md font-medium transition-all ${
+                  className={`w-full py-2.5 px-4 rounded-md font-medium transition-all ${
                     blockPlacementMode
-                      ? 'bg-gradient-to-r from-red-600 to-pink-600 text-white'
-                      : 'bg-gradient-to-r from-red-500 to-pink-600 text-white hover:from-red-600 hover:to-pink-700'
+                      ? 'bg-neutral-600 text-white shadow-lg'
+                      : 'bg-neutral-800 text-white hover:bg-neutral-700 border border-neutral-600'
                   }`}
                 >
-                  {blockPlacementMode ? '✓ Block Placement Active' : '🚫 Add Road Block'}
+                  {blockPlacementMode ? '✓ Block Mode Active' : '🚫 Add Block'}
                 </button>
 
                 <button
                   onClick={runSimulation}
                   disabled={agents.length === 0 || isRunning}
-                  className="w-full bg-gradient-to-r from-green-500 to-emerald-600 text-white py-2 px-4 rounded-md hover:from-green-600 hover:to-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed font-medium transition-all"
+                  className="w-full bg-blue-600 text-white py-2.5 px-4 rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed font-medium transition-all shadow-lg"
                 >
                   {isRunning ? '⏳ Running...' : '▶️ Run Simulation'}
                 </button>
@@ -619,25 +632,26 @@ const EvacuationInterface = () => {
                 <button
                   onClick={clearAll}
                   disabled={agents.length === 0 && roadBlocks.length === 0}
-                  className="w-full bg-gradient-to-r from-red-500 to-pink-600 text-white py-2 px-4 rounded-md hover:from-red-600 hover:to-pink-700 disabled:opacity-50 disabled:cursor-not-allowed font-medium transition-all"
+                  className="w-full bg-neutral-800 text-white py-2.5 px-4 rounded-md hover:bg-neutral-700 disabled:opacity-50 disabled:cursor-not-allowed font-medium transition-all border border-neutral-600"
                 >
                   🗑️ Clear All
                 </button>
               </div>
             </div>
 
-            <div className="bg-black rounded-lg p-4 shadow-lg border border-neutral-600">
-              <h3 className="text-lg font-bold text-white mb-4">📊 Route Results</h3>
+            {/* Route Results Card */}
+            <div className="bg-black rounded-lg p-4 shadow-lg border border-neutral-700">
+              <h3 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
+                <span className="text-blue-500">📊</span> Route Results
+              </h3>
               <div className="space-y-3">
                 {paths.length === 0 ? (
-                  <div className="text-center py-8">
-                    <div className="text-4xl mb-2">🗺️</div>
-                    <p className="text-neutral-400 text-sm">No routes calculated yet</p>
-                    <p className="text-neutral-500 text-xs mt-1">Add agents and run simulation</p>
+                  <div className="text-center py-6">
+                    <div className="text-3xl mb-2 text-neutral-600">🗺️</div>
+                    <p className="text-neutral-500 text-xs">No routes yet</p>
                   </div>
                 ) : (
-                  <div className="space-y-3 max-h-96 overflow-y-auto">
-                    {/* Group paths by agent */}
+                  <div className="space-y-2 max-h-72 overflow-y-auto">
                     {agents.map(agent => {
                       const agentPaths = paths.filter(p => 
                         p.id === agent.id || p.agentId === agent.id
@@ -649,59 +663,35 @@ const EvacuationInterface = () => {
                       const alternativePath = agentPaths.find(p => p.isAlternative);
                       
                       return (
-                        <div key={agent.id} className="space-y-2">
-                          {/* Primary Route */}
+                        <div key={agent.id} className="space-y-1">
                           {primaryPath && (
-                            <div
-                              className="bg-neutral-800 rounded-md p-3 border-l-4"
-                              style={{ borderColor: agent.color }}
-                            >
-                              <div className="flex items-center justify-between mb-2">
-                                <span className="font-semibold text-white">{agent.name}</span>
-                                <span className={`text-xs px-2 py-1 rounded ${
-                                  primaryPath.impossible ? 'bg-red-500/20 text-red-400' : 
-                                  primaryPath.blocked ? 'bg-yellow-500/20 text-yellow-400' :
-                                  'bg-green-500/20 text-green-400'
+                            <div className="bg-neutral-800 rounded p-2 border-l-2 border-blue-500">
+                              <div className="flex items-center justify-between mb-1">
+                                <span className="font-semibold text-white text-sm">{agent.name}</span>
+                                <span className={`text-xs px-2 py-0.5 rounded ${
+                                  primaryPath.blocked ? 'bg-neutral-700 text-neutral-400' : 'bg-neutral-700 text-neutral-300'
                                 }`}>
-                                  {primaryPath.impossible ? '❌ Impossible' : 
-                                   primaryPath.blocked ? '⚠️ Blocked' : '✅ Clear'}
+                                  {primaryPath.blocked ? '⚠️ Blocked' : '✅ Clear'}
                                 </span>
                               </div>
-                              <div className="grid grid-cols-2 gap-2 text-sm">
-                                <div className="text-neutral-400">Distance:</div>
-                                <div className="text-white font-medium">{primaryPath.distance} km</div>
-                                <div className="text-neutral-400">Duration:</div>
-                                <div className="text-white font-medium">{primaryPath.duration} min</div>
+                              <div className="grid grid-cols-2 gap-1 text-xs text-neutral-400">
+                                <div>{primaryPath.distance} km</div>
+                                <div>{primaryPath.duration} min</div>
                               </div>
-                              {primaryPath.blocked && !alternativePath && (
-                                <div className="mt-2 text-xs text-yellow-400 bg-yellow-500/10 px-2 py-1 rounded">
-                                  ⚠️ Route blocked - No alternative found
-                                </div>
-                              )}
                             </div>
                           )}
                           
-                          {/* Alternative Route */}
                           {alternativePath && (
-                            <div
-                              className="bg-neutral-800 rounded-md p-3 border-l-4 border-green-500"
-                            >
-                              <div className="flex items-center justify-between mb-2">
-                                <span className="font-semibold text-white flex items-center gap-2">
-                                  <span className="text-green-400">🔄</span> Alternative Route
-                                </span>
-                                <span className="text-xs px-2 py-1 rounded bg-green-500/20 text-green-400">
-                                  ✅ Clear & Safe
+                            <div className="bg-neutral-800 rounded p-2 border-l-2 border-blue-600">
+                              <div className="flex items-center justify-between mb-1">
+                                <span className="font-semibold text-blue-400 text-sm">🔄 Alternative</span>
+                                <span className="text-xs px-2 py-0.5 rounded bg-neutral-700 text-neutral-300">
+                                  ✅ Safe
                                 </span>
                               </div>
-                              <div className="grid grid-cols-2 gap-2 text-sm">
-                                <div className="text-neutral-400">Distance:</div>
-                                <div className="text-white font-medium">{alternativePath.distance} km</div>
-                                <div className="text-neutral-400">Duration:</div>
-                                <div className="text-white font-medium">{alternativePath.duration} min</div>
-                              </div>
-                              <div className="mt-2 text-xs text-green-400 bg-green-500/10 px-2 py-1 rounded">
-                                ✨ Recommended: Avoids blocked areas
+                              <div className="grid grid-cols-2 gap-1 text-xs text-neutral-400">
+                                <div>{alternativePath.distance} km</div>
+                                <div>{alternativePath.duration} min</div>
                               </div>
                             </div>
                           )}
@@ -713,21 +703,24 @@ const EvacuationInterface = () => {
               </div>
             </div>
 
-            <div className="bg-black rounded-lg p-4 shadow-lg border border-neutral-600">
-              <h3 className="text-lg font-bold text-white mb-4">🚫 Road Blocks ({roadBlocks.length})</h3>
-              <div className="space-y-2 max-h-48 overflow-y-auto">
+            {/* Road Blocks Card */}
+            <div className="bg-black rounded-lg p-4 shadow-lg border border-neutral-700">
+              <h3 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
+                <span className="text-blue-500">🚫</span> Blocks ({roadBlocks.length})
+              </h3>
+              <div className="space-y-2 max-h-72 overflow-y-auto">
                 {roadBlocks.length === 0 ? (
-                  <p className="text-neutral-400 text-sm text-center py-4">No road blocks placed</p>
+                  <p className="text-neutral-500 text-xs text-center py-6">No blocks placed</p>
                 ) : (
                   roadBlocks.map((block, index) => (
-                    <div key={block.id} className="bg-neutral-800 rounded-md p-2 flex items-center justify-between">
+                    <div key={block.id} className="bg-neutral-800 rounded p-2 flex items-center justify-between">
                       <div>
                         <div className="text-white font-medium text-sm">Block {index + 1}</div>
-                        <div className="text-neutral-400 text-xs">Radius: {block.radius} km</div>
+                        <div className="text-neutral-400 text-xs">{block.radius} km radius</div>
                       </div>
                       <button
                         onClick={() => removeBlock(block.id)}
-                        className="text-red-400 hover:text-red-300 text-sm px-2"
+                        className="text-neutral-400 hover:text-white text-sm px-2"
                       >
                         ✕
                       </button>
@@ -737,38 +730,44 @@ const EvacuationInterface = () => {
               </div>
             </div>
 
-            <div className="bg-black rounded-lg p-4 shadow-lg border border-neutral-600">
-              <h3 className="text-lg font-bold text-white mb-4">👥 Agents ({agents.length})</h3>
-              <div className="space-y-2 max-h-64 overflow-y-auto">
-                {agents.map(agent => (
-                  <div 
-                    key={agent.id}
-                    className="bg-neutral-800 rounded-md p-3 border-l-4"
-                    style={{ borderColor: agent.color }}
-                  >
-                    <div className="flex items-center justify-between mb-2">
-                      <span className="font-semibold text-white">{agent.name}</span>
-                      <button
-                        onClick={() => setAgents(prev => prev.filter(a => a.id !== agent.id))}
-                        className="text-red-400 hover:text-red-300 text-sm"
-                      >
-                        ✕
-                      </button>
+            {/* Agents List Card */}
+            <div className="bg-black rounded-lg p-4 shadow-lg border border-neutral-700">
+              <h3 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
+                <span className="text-blue-500">👥</span> Agents ({agents.length})
+              </h3>
+              <div className="space-y-2 max-h-72 overflow-y-auto">
+                {agents.length === 0 ? (
+                  <p className="text-neutral-500 text-xs text-center py-6">No agents added</p>
+                ) : (
+                  agents.map(agent => (
+                    <div 
+                      key={agent.id}
+                      className="bg-neutral-800 rounded p-2 border-l-2 border-blue-500"
+                    >
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="font-semibold text-white text-sm">{agent.name}</span>
+                        <button
+                          onClick={() => setAgents(prev => prev.filter(a => a.id !== agent.id))}
+                          className="text-neutral-400 hover:text-white text-xs"
+                        >
+                          ✕
+                        </button>
+                      </div>
+                      <div className="flex gap-1 text-xs">
+                        <span className={`px-2 py-0.5 rounded ${
+                          agent.start ? 'bg-neutral-700 text-neutral-300' : 'bg-neutral-700 text-neutral-500'
+                        }`}>
+                          {agent.start ? '✓ Start' : '○ Start'}
+                        </span>
+                        <span className={`px-2 py-0.5 rounded ${
+                          agent.end ? 'bg-neutral-700 text-neutral-300' : 'bg-neutral-700 text-neutral-500'
+                        }`}>
+                          {agent.end ? '✓ End' : '○ End'}
+                        </span>
+                      </div>
                     </div>
-                    <div className="flex gap-2 text-xs">
-                      <span className={`px-2 py-1 rounded ${
-                        agent.start ? 'bg-green-500/20 text-green-400' : 'bg-neutral-700 text-neutral-500'
-                      }`}>
-                        {agent.start ? '✓ Start' : '○ Start'}
-                      </span>
-                      <span className={`px-2 py-1 rounded ${
-                        agent.end ? 'bg-blue-500/20 text-blue-400' : 'bg-neutral-700 text-neutral-500'
-                      }`}>
-                        {agent.end ? '✓ End' : '○ End'}
-                      </span>
-                    </div>
-                  </div>
-                ))}
+                  ))
+                )}
               </div>
             </div>
           </div>
