@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { MapContainer, TileLayer, Marker, Polyline, Popup, useMapEvents } from 'react-leaflet';
+import { MapContainer, TileLayer, Marker, Polyline, Popup, Circle, useMapEvents } from 'react-leaflet';
 import L from 'leaflet';
 import axios from 'axios';
 import 'leaflet/dist/leaflet.css';
@@ -21,6 +21,8 @@ const EvacuationInterface = () => {
   const [agentPlacementMode, setAgentPlacementMode] = useState(false);
   const [pendingAgent, setPendingAgent] = useState(null);
   const [isRunning, setIsRunning] = useState(false);
+  const [roadBlocks, setRoadBlocks] = useState([]);
+  const [blockPlacementMode, setBlockPlacementMode] = useState(false);
 
   // Custom marker icons for start/end points
   const createCustomIcon = (color, label) => {
@@ -32,13 +34,40 @@ const EvacuationInterface = () => {
     });
   };
 
-  // Map click handler component - MUST be inside MapContainer
+  const createBlockIcon = () => {
+    return L.divIcon({
+      className: 'custom-marker',
+      html: `<div style="background-color: #ef4444; width: 35px; height: 35px; border-radius: 50%; display: flex; align-items: center; justify-content: center; border: 3px solid white; box-shadow: 0 2px 8px rgba(0,0,0,0.5); font-size: 18px;">🚫</div>`,
+      iconSize: [35, 35],
+      iconAnchor: [17.5, 17.5],
+    });
+  };
+
+  // Map click handler component
   const MapClickHandler = () => {
     useMapEvents({
       click: (e) => {
-        if (!agentPlacementMode) return;
-
         const clickedPoint = [e.latlng.lat, e.latlng.lng];
+
+        // Handle road block placement
+        if (blockPlacementMode) {
+          const newBlock = {
+            id: Date.now(),
+            position: clickedPoint,
+            radius: 1.0 // Increased to 1km radius for better coverage
+          };
+          setRoadBlocks(prev => [...prev, newBlock]);
+          setBlockPlacementMode(false);
+          
+          // Recalculate routes if simulation was already run
+          if (paths.length > 0) {
+            setTimeout(() => recalculateRoutes(), 100);
+          }
+          return;
+        }
+
+        // Handle agent placement
+        if (!agentPlacementMode) return;
 
         if (!pendingAgent) {
           // Start new agent
@@ -60,66 +89,7 @@ const EvacuationInterface = () => {
       },
     });
 
-    return null; // This component doesn't render anything
-  };
-
-  // Get real road-based routes using OSRM (Open Source Routing Machine)
-  const getRoadRoute = async (start, end) => {
-    try {
-      // Using OSRM public API (more reliable and free)
-      const response = await axios.get(
-        `https://router.project-osrm.org/route/v1/driving/${start[1]},${start[0]};${end[1]},${end[0]}?overview=full&geometries=geojson`
-      );
-      
-      if (response.data.code === 'Ok' && response.data.routes && response.data.routes[0]) {
-        const route = response.data.routes[0];
-        // OSRM returns coordinates in [lon, lat] format, we need [lat, lon]
-        const coordinates = route.geometry.coordinates.map(coord => [coord[1], coord[0]]);
-        const distance = (route.distance / 1000).toFixed(2);
-        const duration = Math.round(route.duration / 60);
-        
-        return { coordinates, distance, duration, blocked: false, impossible: false };
-      }
-    } catch (error) {
-      console.warn('OSRM failed, trying alternative...', error.message);
-      
-      // Try OpenRouteService as backup
-      try {
-        const response = await axios.post(
-          'https://api.openrouteservice.org/v2/directions/driving-car/geojson',
-          {
-            coordinates: [[start[1], start[0]], [end[1], end[0]]]
-          },
-          {
-            headers: {
-              'Authorization': '5b3ce3597851110001cf6248ddeae75119fa4c62b25a72c0fd5068a9',
-              'Content-Type': 'application/json'
-            }
-          }
-        );
-        
-        if (response.data.features && response.data.features[0]) {
-          const route = response.data.features[0];
-          const coordinates = route.geometry.coordinates.map(coord => [coord[1], coord[0]]);
-          const distance = (route.properties.segments[0].distance / 1000).toFixed(2);
-          const duration = Math.round(route.properties.segments[0].duration / 60);
-          
-          return { coordinates, distance, duration, blocked: false, impossible: false };
-        }
-      } catch (orsError) {
-        console.warn('OpenRouteService also failed:', orsError.message);
-      }
-    }
-    
-    // Fallback to straight line only if all APIs fail
-    const distance = calculateDistance(start, end);
-    return {
-      coordinates: [start, end],
-      distance: distance.toFixed(2),
-      duration: Math.round(distance * 12),
-      blocked: false,
-      impossible: false,
-    };
+    return null;
   };
 
   // Calculate distance between two points (in km)
@@ -137,8 +107,272 @@ const EvacuationInterface = () => {
     return R * c;
   };
 
+  // Check if a point is near any road block
+  const isPointBlocked = (point) => {
+    return roadBlocks.some(block => {
+      const distance = calculateDistance(point, block.position);
+      return distance <= block.radius;
+    });
+  };
+
+  // Check if a route passes through any blocked area
+  const isRouteBlocked = (coordinates) => {
+    // Sample more points along the route for better accuracy
+    const sampleInterval = Math.max(1, Math.floor(coordinates.length / 50)); // Sample at least 50 points
+    
+    for (let i = 0; i < coordinates.length; i += sampleInterval) {
+      if (isPointBlocked(coordinates[i])) {
+        return true;
+      }
+    }
+    
+    // Always check the last point
+    if (coordinates.length > 0 && !isPointBlocked(coordinates[coordinates.length - 1])) {
+      // Also check final point
+    } else if (coordinates.length > 0) {
+      return true;
+    }
+    
+    return false;
+  };
+
+  // Get real road-based routes using OSRM with alternative route finding
+  const getRoadRoute = async (start, end, findAlternative = false) => {
+    try {
+      // Request alternative routes from OSRM
+      const alternatives = findAlternative ? 'true' : 'false';
+      const response = await axios.get(
+        `https://router.project-osrm.org/route/v1/driving/${start[1]},${start[0]};${end[1]},${end[0]}?overview=full&geometries=geojson&alternatives=${alternatives}&steps=true`
+      );
+      
+      if (response.data.code === 'Ok' && response.data.routes && response.data.routes.length > 0) {
+        const routes = response.data.routes;
+        const processedRoutes = [];
+        
+        // Process all available routes
+        for (const route of routes) {
+          const coordinates = route.geometry.coordinates.map(coord => [coord[1], coord[0]]);
+          const distance = (route.distance / 1000).toFixed(2);
+          const duration = Math.round(route.duration / 60);
+          const blocked = isRouteBlocked(coordinates);
+          
+          processedRoutes.push({
+            coordinates,
+            distance,
+            duration,
+            blocked,
+            impossible: false
+          });
+        }
+        
+        // If looking for alternatives and primary route is blocked
+        if (findAlternative && processedRoutes[0]?.blocked) {
+          // Find first non-blocked route
+          const clearRoute = processedRoutes.find(r => !r.blocked);
+          if (clearRoute) {
+            return {
+              primary: processedRoutes[0],
+              alternative: clearRoute,
+              hasAlternative: true
+            };
+          }
+          
+          // If no clear route in alternatives, try detouring around blocks
+          const detourRoute = await findDetourRoute(start, end);
+          if (detourRoute && !detourRoute.blocked) {
+            return {
+              primary: processedRoutes[0],
+              alternative: detourRoute,
+              hasAlternative: true
+            };
+          }
+        }
+        
+        // Return primary route (may be blocked)
+        return processedRoutes[0];
+      }
+    } catch (error) {
+      console.warn('OSRM failed, trying alternative...', error.message);
+    }
+    
+    // Fallback
+    const distance = calculateDistance(start, end);
+    return {
+      coordinates: [start, end],
+      distance: distance.toFixed(2),
+      duration: Math.round(distance * 12),
+      blocked: false,
+      impossible: false,
+    };
+  };
+
+  // Find detour route by adding waypoints around blocked areas
+  const findDetourRoute = async (start, end) => {
+    try {
+      // Calculate midpoint and create offset waypoints to avoid blocked areas
+      const midLat = (start[0] + end[0]) / 2;
+      const midLon = (start[1] + end[1]) / 2;
+      
+      // Calculate distance to determine appropriate offset range
+      const totalDistance = calculateDistance(start, end);
+      const baseOffset = Math.max(0.05, totalDistance * 0.15); // At least 5km or 15% of total distance
+      
+      // Try different offset angles and distances to find clear path
+      const offsets = [
+        // Close range offsets (15% of distance)
+        { lat: baseOffset, lon: baseOffset },           // Northeast
+        { lat: baseOffset, lon: -baseOffset },          // Northwest
+        { lat: -baseOffset, lon: baseOffset },          // Southeast
+        { lat: -baseOffset, lon: -baseOffset },         // Southwest
+        { lat: baseOffset * 1.2, lon: 0 },              // North
+        { lat: -baseOffset * 1.2, lon: 0 },             // South
+        { lat: 0, lon: baseOffset * 1.2 },              // East
+        { lat: 0, lon: -baseOffset * 1.2 },             // West
+        
+        // Medium range offsets (25% of distance)
+        { lat: baseOffset * 1.8, lon: baseOffset * 1.8 },
+        { lat: baseOffset * 1.8, lon: -baseOffset * 1.8 },
+        { lat: -baseOffset * 1.8, lon: baseOffset * 1.8 },
+        { lat: -baseOffset * 1.8, lon: -baseOffset * 1.8 },
+        
+        // Far range offsets (35% of distance)
+        { lat: baseOffset * 2.5, lon: baseOffset * 2.5 },
+        { lat: baseOffset * 2.5, lon: -baseOffset * 2.5 },
+        { lat: -baseOffset * 2.5, lon: baseOffset * 2.5 },
+        { lat: -baseOffset * 2.5, lon: -baseOffset * 2.5 },
+        
+        // Extra wide detours (50% of distance)
+        { lat: baseOffset * 3.5, lon: 0 },
+        { lat: -baseOffset * 3.5, lon: 0 },
+        { lat: 0, lon: baseOffset * 3.5 },
+        { lat: 0, lon: -baseOffset * 3.5 },
+        
+        // Multi-waypoint detours using quarter points
+        { lat: baseOffset * 2, lon: baseOffset, quarter: 0.25 },
+        { lat: -baseOffset * 2, lon: -baseOffset, quarter: 0.25 },
+        { lat: baseOffset, lon: baseOffset * 2, quarter: 0.75 },
+        { lat: -baseOffset, lon: -baseOffset * 2, quarter: 0.75 }
+      ];
+      
+      for (const offset of offsets) {
+        try {
+          let waypoints = [];
+          
+          // Create waypoint(s) based on offset configuration
+          if (offset.quarter) {
+            // Multi-waypoint approach for complex detours
+            const quarter1Lat = start[0] + (end[0] - start[0]) * 0.25;
+            const quarter1Lon = start[1] + (end[1] - start[1]) * 0.25;
+            const quarter2Lat = start[0] + (end[0] - start[0]) * 0.75;
+            const quarter2Lon = start[1] + (end[1] - start[1]) * 0.75;
+            
+            waypoints = [
+              [quarter1Lat + offset.lat, quarter1Lon + offset.lon],
+              [quarter2Lat + offset.lat, quarter2Lon + offset.lon]
+            ];
+          } else {
+            // Single waypoint at midpoint with offset
+            waypoints = [[midLat + offset.lat, midLon + offset.lon]];
+          }
+          
+          // Check if any waypoint is blocked
+          const anyWaypointBlocked = waypoints.some(wp => isPointBlocked(wp));
+          if (anyWaypointBlocked) continue;
+          
+          // Build coordinate string for OSRM API
+          const coords = [
+            `${start[1]},${start[0]}`,
+            ...waypoints.map(wp => `${wp[1]},${wp[0]}`),
+            `${end[1]},${end[0]}`
+          ].join(';');
+          
+          // Request route with waypoint(s)
+          const response = await axios.get(
+            `https://router.project-osrm.org/route/v1/driving/${coords}?overview=full&geometries=geojson&continue_straight=false`
+          );
+          
+          if (response.data.code === 'Ok' && response.data.routes && response.data.routes[0]) {
+            const route = response.data.routes[0];
+            const coordinates = route.geometry.coordinates.map(coord => [coord[1], coord[0]]);
+            const distance = (route.distance / 1000).toFixed(2);
+            const duration = Math.round(route.duration / 60);
+            const blocked = isRouteBlocked(coordinates);
+            
+            // Return first non-blocked detour route found
+            if (!blocked) {
+              console.log(`Found clear detour route with ${waypoints.length} waypoint(s), distance: ${distance}km`);
+              return {
+                coordinates,
+                distance,
+                duration,
+                blocked: false,
+                impossible: false
+              };
+            }
+          }
+        } catch (waypointError) {
+          // Continue to next waypoint option if this one fails
+          continue;
+        }
+      }
+      
+      // If no single detour works, try extreme wide detours with multiple waypoints
+      console.log('Trying extreme detour routes...');
+      const extremeOffsets = [
+        { lat: baseOffset * 5, lon: 0 },
+        { lat: -baseOffset * 5, lon: 0 },
+        { lat: 0, lon: baseOffset * 5 },
+        { lat: 0, lon: -baseOffset * 5 }
+      ];
+      
+      for (const offset of extremeOffsets) {
+        try {
+          const waypoint = [midLat + offset.lat, midLon + offset.lon];
+          if (isPointBlocked(waypoint)) continue;
+          
+          const coords = `${start[1]},${start[0]};${waypoint[1]},${waypoint[0]};${end[1]},${end[0]}`;
+          const response = await axios.get(
+            `https://router.project-osrm.org/route/v1/driving/${coords}?overview=full&geometries=geojson&continue_straight=false`
+          );
+          
+          if (response.data.code === 'Ok' && response.data.routes && response.data.routes[0]) {
+            const route = response.data.routes[0];
+            const coordinates = route.geometry.coordinates.map(coord => [coord[1], coord[0]]);
+            const distance = (route.distance / 1000).toFixed(2);
+            const duration = Math.round(route.duration / 60);
+            const blocked = isRouteBlocked(coordinates);
+            
+            if (!blocked) {
+              console.log(`Found extreme detour route, distance: ${distance}km`);
+              return {
+                coordinates,
+                distance,
+                duration,
+                blocked: false,
+                impossible: false
+              };
+            }
+          }
+        } catch (extremeError) {
+          continue;
+        }
+      }
+    } catch (error) {
+      console.warn('Detour route failed:', error.message);
+    }
+    
+    return null;
+  };
+
   const toggleAgentPlacementMode = () => {
     setAgentPlacementMode(!agentPlacementMode);
+    setPendingAgent(null);
+    setBlockPlacementMode(false);
+  };
+
+  const toggleBlockPlacementMode = () => {
+    setBlockPlacementMode(!blockPlacementMode);
+    setAgentPlacementMode(false);
     setPendingAgent(null);
   };
 
@@ -146,9 +380,66 @@ const EvacuationInterface = () => {
     setAgents([]);
     setPaths([]);
     setPendingAgent(null);
+    setRoadBlocks([]);
   };
 
-  // Real road-based pathfinding simulation
+  const removeBlock = (blockId) => {
+    setRoadBlocks(prev => prev.filter(b => b.id !== blockId));
+    if (paths.length > 0) {
+      setTimeout(() => recalculateRoutes(), 100);
+    }
+  };
+
+  const recalculateRoutes = async () => {
+    if (agents.length === 0) return;
+
+    setIsRunning(true);
+    const newPaths = [];
+
+    for (const agent of agents) {
+      if (agent.start && agent.end) {
+        // Try to find alternative route if available
+        const routeData = await getRoadRoute(agent.start, agent.end, true);
+        
+        // If route has alternative (blocked primary + clear alternative)
+        if (routeData.hasAlternative) {
+          // Add blocked primary route
+          newPaths.push({
+            id: `${agent.id}-blocked`,
+            agentId: agent.id,
+            ...routeData.primary,
+            color: agent.color,
+            isPrimary: true,
+            isAlternative: false
+          });
+          
+          // Add clear alternative route
+          newPaths.push({
+            id: `${agent.id}-alt`,
+            agentId: agent.id,
+            ...routeData.alternative,
+            color: agent.color,
+            isPrimary: false,
+            isAlternative: true
+          });
+        } else {
+          // Single route (either clear or blocked with no alternative)
+          newPaths.push({
+            id: agent.id,
+            agentId: agent.id,
+            ...routeData,
+            color: agent.color,
+            isPrimary: true,
+            isAlternative: false
+          });
+        }
+      }
+    }
+
+    setPaths(newPaths);
+    setIsRunning(false);
+  };
+
   const runSimulation = async () => {
     if (agents.length === 0) {
       alert('Please add at least one agent');
@@ -161,45 +452,34 @@ const EvacuationInterface = () => {
       return;
     }
 
-    setIsRunning(true);
-    const newPaths = [];
-
-    for (const agent of agents) {
-      const routeData = await getRoadRoute(agent.start, agent.end);
-      newPaths.push({
-        id: agent.id,
-        ...routeData,
-        color: agent.color,
-      });
-    }
-
-    setPaths(newPaths);
-    setIsRunning(false);
+    await recalculateRoutes();
   };
 
   return (
     <div className="min-h-screen bg-neutral-700">
-      {/* Header */}
       <div className="bg-neutral-800 border-b border-neutral-600 py-6">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <h1 className="text-3xl font-bold bg-gradient-to-r from-blue-400 to-purple-500 bg-clip-text text-transparent">
             🚨 Emergency Evacuation Planning
           </h1>
           <p className="text-neutral-400 mt-2">
-            Plan optimal evacuation routes with real road routing and multi-agent coordination
+            Plan optimal evacuation routes with real road routing, road blocks, and multi-agent coordination
           </p>
         </div>
       </div>
 
-      {/* Main Content */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Left Column - Map */}
           <div className="lg:col-span-2">
             <div className="bg-black rounded-lg overflow-hidden shadow-lg border border-neutral-600">
               {agentPlacementMode && pendingAgent && (
                 <div className="bg-gradient-to-r from-blue-500 to-purple-600 px-4 py-3 text-white text-sm font-medium">
                   🎯 {pendingAgent.start ? 'Click on map to set END point' : 'Click on map to set START point'}
+                </div>
+              )}
+              {blockPlacementMode && (
+                <div className="bg-gradient-to-r from-red-500 to-pink-600 px-4 py-3 text-white text-sm font-medium">
+                  🚫 Click on map to place ROAD BLOCK
                 </div>
               )}
               
@@ -215,10 +495,8 @@ const EvacuationInterface = () => {
                     attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
                   />
 
-                  {/* Map click handler - must be inside MapContainer */}
                   <MapClickHandler />
 
-                  {/* Render pending agent */}
                   {pendingAgent && pendingAgent.start && (
                     <Marker
                       position={pendingAgent.start}
@@ -228,7 +506,6 @@ const EvacuationInterface = () => {
                     </Marker>
                   )}
 
-                  {/* Render completed agents */}
                   {agents.map((agent) => (
                     <div key={agent.id}>
                       {agent.start && (
@@ -250,25 +527,62 @@ const EvacuationInterface = () => {
                     </div>
                   ))}
 
-                  {/* Render paths */}
-                  {paths.map((path) => (
-                    <Polyline
-                      key={path.id}
-                      positions={path.coordinates}
-                      color={path.color}
-                      weight={4}
-                      opacity={0.7}
-                      dashArray={path.blocked ? '10, 10' : null}
-                    />
+                  {paths.map((path) => {
+                    // Alternative routes are green and solid
+                    const routeColor = path.isAlternative ? '#10b981' : (path.blocked ? '#fbbf24' : path.color);
+                    const routeWeight = path.isAlternative ? 5 : 4;
+                    const routeOpacity = path.isAlternative ? 0.9 : (path.blocked ? 0.5 : 0.7);
+                    const routeDash = path.blocked && !path.isAlternative ? '10, 10' : null;
+                    
+                    return (
+                      <Polyline
+                        key={path.id}
+                        positions={path.coordinates}
+                        color={routeColor}
+                        weight={routeWeight}
+                        opacity={routeOpacity}
+                        dashArray={routeDash}
+                      />
+                    );
+                  })}
+
+                  {roadBlocks.map((block) => (
+                    <div key={block.id}>
+                      <Marker
+                        position={block.position}
+                        icon={createBlockIcon()}
+                      >
+                        <Popup>
+                          <div className="text-center">
+                            <p className="font-bold text-red-600">Road Block</p>
+                            <p className="text-xs text-gray-600">Radius: {block.radius} km</p>
+                            <button
+                              onClick={() => removeBlock(block.id)}
+                              className="mt-2 bg-red-500 text-white px-3 py-1 rounded text-xs hover:bg-red-600"
+                            >
+                              Remove
+                            </button>
+                          </div>
+                        </Popup>
+                      </Marker>
+                      <Circle
+                        center={block.position}
+                        radius={block.radius * 1000}
+                        pathOptions={{
+                          color: '#ef4444',
+                          fillColor: '#ef4444',
+                          fillOpacity: 0.2,
+                          weight: 2
+                        }}
+                      />
+                    </div>
                   ))}
                 </MapContainer>
               </div>
             </div>
           </div>
 
-          {/* Right Column - Controls */}
           <div className="space-y-4">
-            {/* Quick Actions Card */}
             <div className="bg-black rounded-lg p-4 shadow-lg border border-neutral-600">
               <h3 className="text-lg font-bold text-white mb-4">🎮 Quick Actions</h3>
               <div className="space-y-2">
@@ -284,6 +598,17 @@ const EvacuationInterface = () => {
                 </button>
 
                 <button
+                  onClick={toggleBlockPlacementMode}
+                  className={`w-full py-2 px-4 rounded-md font-medium transition-all ${
+                    blockPlacementMode
+                      ? 'bg-gradient-to-r from-red-600 to-pink-600 text-white'
+                      : 'bg-gradient-to-r from-red-500 to-pink-600 text-white hover:from-red-600 hover:to-pink-700'
+                  }`}
+                >
+                  {blockPlacementMode ? '✓ Block Placement Active' : '🚫 Add Road Block'}
+                </button>
+
+                <button
                   onClick={runSimulation}
                   disabled={agents.length === 0 || isRunning}
                   className="w-full bg-gradient-to-r from-green-500 to-emerald-600 text-white py-2 px-4 rounded-md hover:from-green-600 hover:to-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed font-medium transition-all"
@@ -293,7 +618,7 @@ const EvacuationInterface = () => {
 
                 <button
                   onClick={clearAll}
-                  disabled={agents.length === 0}
+                  disabled={agents.length === 0 && roadBlocks.length === 0}
                   className="w-full bg-gradient-to-r from-red-500 to-pink-600 text-white py-2 px-4 rounded-md hover:from-red-600 hover:to-pink-700 disabled:opacity-50 disabled:cursor-not-allowed font-medium transition-all"
                 >
                   🗑️ Clear All
@@ -301,7 +626,6 @@ const EvacuationInterface = () => {
               </div>
             </div>
 
-            {/* Route Results Card */}
             <div className="bg-black rounded-lg p-4 shadow-lg border border-neutral-600">
               <h3 className="text-lg font-bold text-white mb-4">📊 Route Results</h3>
               <div className="space-y-3">
@@ -313,30 +637,74 @@ const EvacuationInterface = () => {
                   </div>
                 ) : (
                   <div className="space-y-3 max-h-96 overflow-y-auto">
-                    {paths.map(path => {
-                      const agent = agents.find(a => a.id === path.id);
+                    {/* Group paths by agent */}
+                    {agents.map(agent => {
+                      const agentPaths = paths.filter(p => 
+                        p.id === agent.id || p.agentId === agent.id
+                      );
+                      
+                      if (agentPaths.length === 0) return null;
+                      
+                      const primaryPath = agentPaths.find(p => p.isPrimary);
+                      const alternativePath = agentPaths.find(p => p.isAlternative);
+                      
                       return (
-                        <div
-                          key={path.id}
-                          className="bg-neutral-800 rounded-md p-3 border-l-4"
-                          style={{ borderColor: path.color }}
-                        >
-                          <div className="flex items-center justify-between mb-2">
-                            <span className="font-semibold text-white">{agent?.name || 'Agent'}</span>
-                            <span className={`text-xs px-2 py-1 rounded ${
-                              path.impossible ? 'bg-red-500/20 text-red-400' : 
-                              path.blocked ? 'bg-yellow-500/20 text-yellow-400' :
-                              'bg-green-500/20 text-green-400'
-                            }`}>
-                              {path.impossible ? '❌ Impossible' : path.blocked ? '⚠️ Blocked' : '✅ Clear'}
-                            </span>
-                          </div>
-                          <div className="grid grid-cols-2 gap-2 text-sm">
-                            <div className="text-neutral-400">Distance:</div>
-                            <div className="text-white font-medium">{path.distance} km</div>
-                            <div className="text-neutral-400">Duration:</div>
-                            <div className="text-white font-medium">{path.duration} min</div>
-                          </div>
+                        <div key={agent.id} className="space-y-2">
+                          {/* Primary Route */}
+                          {primaryPath && (
+                            <div
+                              className="bg-neutral-800 rounded-md p-3 border-l-4"
+                              style={{ borderColor: agent.color }}
+                            >
+                              <div className="flex items-center justify-between mb-2">
+                                <span className="font-semibold text-white">{agent.name}</span>
+                                <span className={`text-xs px-2 py-1 rounded ${
+                                  primaryPath.impossible ? 'bg-red-500/20 text-red-400' : 
+                                  primaryPath.blocked ? 'bg-yellow-500/20 text-yellow-400' :
+                                  'bg-green-500/20 text-green-400'
+                                }`}>
+                                  {primaryPath.impossible ? '❌ Impossible' : 
+                                   primaryPath.blocked ? '⚠️ Blocked' : '✅ Clear'}
+                                </span>
+                              </div>
+                              <div className="grid grid-cols-2 gap-2 text-sm">
+                                <div className="text-neutral-400">Distance:</div>
+                                <div className="text-white font-medium">{primaryPath.distance} km</div>
+                                <div className="text-neutral-400">Duration:</div>
+                                <div className="text-white font-medium">{primaryPath.duration} min</div>
+                              </div>
+                              {primaryPath.blocked && !alternativePath && (
+                                <div className="mt-2 text-xs text-yellow-400 bg-yellow-500/10 px-2 py-1 rounded">
+                                  ⚠️ Route blocked - No alternative found
+                                </div>
+                              )}
+                            </div>
+                          )}
+                          
+                          {/* Alternative Route */}
+                          {alternativePath && (
+                            <div
+                              className="bg-neutral-800 rounded-md p-3 border-l-4 border-green-500"
+                            >
+                              <div className="flex items-center justify-between mb-2">
+                                <span className="font-semibold text-white flex items-center gap-2">
+                                  <span className="text-green-400">🔄</span> Alternative Route
+                                </span>
+                                <span className="text-xs px-2 py-1 rounded bg-green-500/20 text-green-400">
+                                  ✅ Clear & Safe
+                                </span>
+                              </div>
+                              <div className="grid grid-cols-2 gap-2 text-sm">
+                                <div className="text-neutral-400">Distance:</div>
+                                <div className="text-white font-medium">{alternativePath.distance} km</div>
+                                <div className="text-neutral-400">Duration:</div>
+                                <div className="text-white font-medium">{alternativePath.duration} min</div>
+                              </div>
+                              <div className="mt-2 text-xs text-green-400 bg-green-500/10 px-2 py-1 rounded">
+                                ✨ Recommended: Avoids blocked areas
+                              </div>
+                            </div>
+                          )}
                         </div>
                       );
                     })}
@@ -345,7 +713,30 @@ const EvacuationInterface = () => {
               </div>
             </div>
 
-            {/* Agents List Card */}
+            <div className="bg-black rounded-lg p-4 shadow-lg border border-neutral-600">
+              <h3 className="text-lg font-bold text-white mb-4">🚫 Road Blocks ({roadBlocks.length})</h3>
+              <div className="space-y-2 max-h-48 overflow-y-auto">
+                {roadBlocks.length === 0 ? (
+                  <p className="text-neutral-400 text-sm text-center py-4">No road blocks placed</p>
+                ) : (
+                  roadBlocks.map((block, index) => (
+                    <div key={block.id} className="bg-neutral-800 rounded-md p-2 flex items-center justify-between">
+                      <div>
+                        <div className="text-white font-medium text-sm">Block {index + 1}</div>
+                        <div className="text-neutral-400 text-xs">Radius: {block.radius} km</div>
+                      </div>
+                      <button
+                        onClick={() => removeBlock(block.id)}
+                        className="text-red-400 hover:text-red-300 text-sm px-2"
+                      >
+                        ✕
+                      </button>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+
             <div className="bg-black rounded-lg p-4 shadow-lg border border-neutral-600">
               <h3 className="text-lg font-bold text-white mb-4">👥 Agents ({agents.length})</h3>
               <div className="space-y-2 max-h-64 overflow-y-auto">
