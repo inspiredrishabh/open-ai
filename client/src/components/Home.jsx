@@ -275,32 +275,11 @@ export default function Home() {
               </p>
             </div>
 
-            <div>
-              <h4 className="font-semibold text-neutral-900 dark:text-white mb-4">Product</h4>
-              <ul className="space-y-2 text-sm text-neutral-600 dark:text-neutral-400">
-                <li><button onClick={() => scrollToSection('features')} className="hover:text-neutral-900 dark:hover:text-white">Features</button></li>
-                <li><button onClick={() => scrollToSection('how-it-works')} className="hover:text-neutral-900 dark:hover:text-white">How It Works</button></li>
-                <li><Link to="/analyze" className="hover:text-neutral-900 dark:hover:text-white">Live Demo</Link></li>
-              </ul>
-            </div>
+            
 
-            <div>
-              <h4 className="font-semibold text-neutral-900 dark:text-white mb-4">Company</h4>
-              <ul className="space-y-2 text-sm text-neutral-600 dark:text-neutral-400">
-                <li><button onClick={() => scrollToSection('about')} className="hover:text-neutral-900 dark:hover:text-white">About</button></li>
-                <li><a href="#" className="hover:text-neutral-900 dark:hover:text-white">Blog</a></li>
-                <li><a href="#" className="hover:text-neutral-900 dark:hover:text-white">Contact</a></li>
-              </ul>
-            </div>
+            
 
-            <div>
-              <h4 className="font-semibold text-neutral-900 dark:text-white mb-4">Legal</h4>
-              <ul className="space-y-2 text-sm text-neutral-600 dark:text-neutral-400">
-                <li><a href="#" className="hover:text-neutral-900 dark:hover:text-white">Privacy</a></li>
-                <li><a href="#" className="hover:text-neutral-900 dark:hover:text-white">Terms</a></li>
-                <li><a href="#" className="hover:text-neutral-900 dark:hover:text-white">Security</a></li>
-              </ul>
-            </div>
+            
           </div>
 
           <div className="border-t border-neutral-200 dark:border-neutral-800 pt-8 flex items-center justify-between">
