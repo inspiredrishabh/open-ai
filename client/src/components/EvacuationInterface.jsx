@@ -457,22 +457,6 @@ const EvacuationInterface = () => {
 
   return (
     <div className="min-h-screen bg-neutral-900">
-      {/* Header */}
-      <div className="bg-neutral-800 border-b border-neutral-700 py-6">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center gap-3">
-            <div className="text-4xl">🚨</div>
-            <div>
-              <h1 className="text-3xl font-bold text-white">
-                Emergency Evacuation Planning
-              </h1>
-              <p className="text-neutral-400 mt-1">
-                Plan optimal evacuation routes with real road routing, road blocks, and multi-agent coordination
-              </p>
-            </div>
-          </div>
-        </div>
-      </div>
 
       {/* Map Section - Full Width */}
       <div className="bg-neutral-800 border-b border-neutral-700">
